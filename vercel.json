@@ -2,14 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "api_server.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "crew_dashboard.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "api_server.py"
+      "src": "/api/(.*)",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/",
+      "dest": "/crew_dashboard.html"
     }
   ]
 }
