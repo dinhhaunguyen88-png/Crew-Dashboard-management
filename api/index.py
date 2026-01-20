@@ -1,122 +1,281 @@
 """
 Vercel Serverless Function Handler for Crew Management Dashboard
+With Supabase Database Integration
 """
 
-from flask import Flask, jsonify, request, Response
-from flask_cors import CORS
-import json
+from flask import Flask, request, render_template, redirect, url_for, flash
 import os
+import sys
+import csv
+from pathlib import Path
+from io import StringIO
 
-app = Flask(__name__)
-CORS(app)
+# Add the parent directory to sys.path
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(root_dir)
 
-# Sample data for demo (Vercel serverless cannot read local files)
-DEMO_DATA = {
-    "summary": {
-        "total_flights": 156,
-        "total_block_hours": 312.5,
-        "avg_flight_hours": 6.25,
-        "total_aircraft": 50,
-        "total_crew": 245,
-        "multi_reg_count": 12,
-        "crew_rotation_groups": 12
-    },
-    "aircraft": [],
-    "crew_roles": {
-        "PIC": 85,
-        "FO": 92,
-        "CC": 68
-    },
-    "multi_reg_crew": [],
-    "utilization": {
-        "A321": {"count": 30, "avg_hours": 6.5},
-        "A320": {"count": 15, "avg_hours": 5.8},
-        "A330": {"count": 5, "avg_hours": 8.2}
-    },
-    "rolling_stats": {
-        "total_crew": 245,
-        "avg_28day_hours": 65.2,
-        "avg_365day_hours": 720.5
-    },
-    "crew_schedule": {
-        "summary": {
-            "standby": 15,
-            "sick_call": 3,
-            "fatigue": 2
-        }
+from data_processor import DataProcessor
+import supabase_client as db
+
+# Initialize Flask
+app = Flask(__name__, template_folder='../', static_folder='../static')
+app.secret_key = 'crew-dashboard-secret'
+
+# Initialize DataProcessor for metric calculations
+processor = DataProcessor(data_dir=root_dir)
+
+# Check Supabase connection on startup
+supabase_connected, supabase_msg = db.check_connection()
+print(f"Supabase: {supabase_msg}")
+
+
+def load_data_from_supabase(filter_date=None):
+    """Load all data from Supabase and process metrics"""
+    # Get flights from Supabase
+    flights = db.get_flights(filter_date)
+    available_dates = db.get_available_dates()
+    
+    # Get other data
+    rolling_hours = db.get_rolling_hours()
+    crew_schedule_summary = db.get_crew_schedule_summary(filter_date)
+    ac_utilization = db.get_ac_utilization(filter_date)
+    
+    # Process flights to calculate metrics using DataProcessor logic
+    processor.flights = flights
+    processor.available_dates = available_dates
+    
+    # Re-populate internal data structures from flights
+    processor.crew_to_regs.clear()
+    processor.reg_flight_hours.clear()
+    processor.reg_flight_count.clear()
+    
+    import re
+    for flight in flights:
+        reg = flight.get('reg', '')
+        crew_string = flight.get('crew', '')
+        std = flight.get('std', '')
+        sta = flight.get('sta', '')
+        
+        # Calculate flight hours
+        if std and sta and ':' in std and ':' in sta:
+            try:
+                std_min = int(std.split(':')[0]) * 60 + int(std.split(':')[1])
+                sta_min = int(sta.split(':')[0]) * 60 + int(sta.split(':')[1])
+                duration = sta_min - std_min
+                if duration < 0:
+                    duration += 24 * 60
+                hours = duration / 60
+                processor.reg_flight_hours[reg] += hours
+                processor.reg_flight_count[reg] += 1
+            except:
+                pass
+        
+        # Extract crew
+        if crew_string:
+            pattern = r'\(([A-Z]{2})\)\s*(\d+)'
+            matches = re.findall(pattern, crew_string)
+            for role, crew_id in matches:
+                processor.crew_to_regs[crew_id].add(reg)
+                processor.crew_roles[crew_id] = role
+    
+    # Calculate metrics
+    metrics = processor.calculate_metrics(filter_date)
+    
+    # Override with Supabase data
+    metrics['rolling_hours'] = rolling_hours[:20]  # Top 20
+    metrics['crew_schedule'] = crew_schedule_summary
+    
+    # Process rolling hours stats
+    normal_count = len([r for r in rolling_hours if r.get('status') == 'normal'])
+    warning_count = len([r for r in rolling_hours if r.get('status') == 'warning'])
+    critical_count = len([r for r in rolling_hours if r.get('status') == 'critical'])
+    metrics['rolling_stats'] = {
+        'normal': normal_count,
+        'warning': warning_count,
+        'critical': critical_count,
+        'total': len(rolling_hours)
     }
-}
+    
+    # AC Utilization
+    util_dict = {}
+    for item in ac_utilization:
+        ac_type = item.get('ac_type', '')
+        util_dict[ac_type] = {
+            'dom_block': item.get('dom_block', '00:00'),
+            'int_block': item.get('int_block', '00:00'),
+            'total_block': item.get('total_block', '00:00'),
+            'dom_cycles': item.get('dom_cycles', 0),
+            'int_cycles': item.get('int_cycles', 0),
+            'total_cycles': item.get('total_cycles', 0),
+            'avg_util': item.get('avg_util', '')
+        }
+    metrics['utilization'] = util_dict
+    
+    return metrics, available_dates
 
 
-@app.route('/api/dashboard', methods=['GET'])
-def get_dashboard():
-    """Get all dashboard data"""
-    return jsonify(DEMO_DATA)
+def fallback_to_local():
+    """Fallback to local CSV files if Supabase not available"""
+    processor.process_dayrep_csv()
+    processor.process_sacutil_csv()
+    processor.process_rolcrtot_csv()
+    processor.process_crew_schedule_csv()
 
 
-@app.route('/api/summary', methods=['GET'])
-def get_summary():
-    """Get summary KPIs"""
-    return jsonify(DEMO_DATA['summary'])
+@app.route('/', methods=['GET'])
+def index():
+    """Render the dashboard with data"""
+    filter_date = request.args.get('date', None)
+    
+    # Try Supabase first, fallback to local
+    if supabase_connected:
+        try:
+            metrics_data, available_dates = load_data_from_supabase(filter_date)
+        except Exception as e:
+            print(f"Supabase error: {e}")
+            fallback_to_local()
+            metrics_data = processor.calculate_metrics(filter_date)
+            available_dates = processor.available_dates
+    else:
+        fallback_to_local()
+        metrics_data = processor.calculate_metrics(filter_date)
+        available_dates = processor.available_dates
+    
+    # Build data structure for template
+    data = {
+        'summary': metrics_data.get('summary', {}),
+        'aircraft': list(processor.reg_flight_hours.keys()),
+        'crew_roles': metrics_data.get('crew_roles', {}),
+        'crew_rotations': metrics_data.get('crew_rotations', []),
+        'available_dates': available_dates,
+        'operating_crew': metrics_data.get('operating_crew', []),
+        'utilization': metrics_data.get('utilization', {}),
+        'rolling_hours': metrics_data.get('rolling_hours', []),
+        'rolling_stats': metrics_data.get('rolling_stats', {}),
+        'crew_schedule': metrics_data.get('crew_schedule', {})
+    }
+    
+    return render_template('crew_dashboard.html', data=data, filter_date=filter_date)
 
 
-@app.route('/api/aircraft', methods=['GET'])
-def get_aircraft():
-    """Get aircraft list"""
-    return jsonify({
-        'total': DEMO_DATA['summary']['total_aircraft'],
-        'avg_flight_hours': DEMO_DATA['summary']['avg_flight_hours'],
-        'aircraft': DEMO_DATA['aircraft']
-    })
+@app.route('/upload', methods=['POST'])
+def upload_files():
+    """Handle CSV file uploads and save to Supabase"""
+    if not supabase_connected:
+        flash('Supabase not connected. Please configure credentials.')
+        return redirect(url_for('index'))
+    
+    try:
+        # Process DayRepReport
+        if 'dayrep' in request.files:
+            file = request.files['dayrep']
+            if file.filename:
+                content = file.read()
+                processor.process_dayrep_csv(file_content=content)
+                
+                # Prepare data for Supabase
+                flights_data = []
+                for flight in processor.flights:
+                    flights_data.append({
+                        'date': flight.get('date', ''),
+                        'calendar_date': flight.get('calendar_date', ''),
+                        'reg': flight.get('reg', ''),
+                        'flt': flight.get('flt', ''),
+                        'dep': flight.get('dep', ''),
+                        'arr': flight.get('arr', ''),
+                        'std': flight.get('std', ''),
+                        'sta': flight.get('sta', ''),
+                        'crew': flight.get('crew', '')
+                    })
+                db.insert_flights(flights_data)
+        
+        # Process SacutilReport
+        if 'sacutil' in request.files:
+            file = request.files['sacutil']
+            if file.filename:
+                content = file.read()
+                processor.process_sacutil_csv(file_content=content)
+                
+                # Prepare data for Supabase
+                util_data = []
+                for date_str, ac_types in processor.ac_utilization_by_date.items():
+                    for ac_type, stats in ac_types.items():
+                        util_data.append({
+                            'date': date_str,
+                            'ac_type': ac_type,
+                            'dom_block': stats.get('dom_block', '00:00'),
+                            'int_block': stats.get('int_block', '00:00'),
+                            'total_block': stats.get('total_block', '00:00'),
+                            'dom_cycles': int(stats.get('dom_cycles', 0)),
+                            'int_cycles': int(stats.get('int_cycles', 0)),
+                            'total_cycles': int(stats.get('total_cycles', 0)),
+                            'avg_util': stats.get('avg_util', '')
+                        })
+                if util_data:
+                    db.insert_ac_utilization(util_data)
+        
+        # Process RolCrTotReport
+        if 'rolcrtot' in request.files:
+            file = request.files['rolcrtot']
+            if file.filename:
+                content = file.read()
+                processor.process_rolcrtot_csv(file_content=content)
+                
+                # Prepare data for Supabase
+                hours_data = []
+                for item in processor.rolling_hours:
+                    hours_data.append({
+                        'crew_id': item.get('id', ''),
+                        'name': item.get('name', ''),
+                        'seniority': item.get('seniority', ''),
+                        'block_28day': item.get('block_28day', '0:00'),
+                        'block_12month': item.get('block_12month', '0:00'),
+                        'hours_28day': item.get('hours_28day', 0),
+                        'hours_12month': item.get('hours_12month', 0),
+                        'percentage': item.get('percentage', 0),
+                        'status': item.get('status', 'normal')
+                    })
+                if hours_data:
+                    db.insert_rolling_hours(hours_data)
+        
+        # Process Crew Schedule
+        if 'crew_schedule' in request.files:
+            file = request.files['crew_schedule']
+            if file.filename:
+                content = file.read()
+                processor.process_crew_schedule_csv(file_content=content)
+                
+                # For crew schedule, we store summary counts per date
+                schedule_data = []
+                for date_str, counts in processor.crew_schedule_by_date.items():
+                    for status_type in ['SL', 'CSL', 'SBY', 'OSBY']:
+                        count = counts.get(status_type, 0)
+                        for _ in range(count):
+                            schedule_data.append({
+                                'date': date_str,
+                                'status_type': status_type
+                            })
+                if schedule_data:
+                    db.insert_crew_schedule(schedule_data)
+        
+        flash('Data uploaded successfully to Supabase!')
+        
+    except Exception as e:
+        flash(f'Upload error: {str(e)}')
+    
+    return redirect(url_for('index'))
 
 
-@app.route('/api/crew', methods=['GET'])
-def get_crew():
-    """Get crew statistics"""
-    return jsonify({
-        'total': DEMO_DATA['summary']['total_crew'],
-        'by_role': DEMO_DATA['crew_roles']
-    })
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    """Check Supabase connection status"""
+    connected, msg = db.check_connection()
+    return {
+        'supabase_connected': connected,
+        'message': msg
+    }
 
 
-@app.route('/api/crew/multi-reg', methods=['GET'])
-def get_multi_reg_crew():
-    """Get crew flying on multiple aircraft"""
-    return jsonify({
-        'count': DEMO_DATA['summary']['multi_reg_count'],
-        'crew': DEMO_DATA['multi_reg_crew']
-    })
-
-
-@app.route('/api/utilization', methods=['GET'])
-def get_utilization():
-    """Get aircraft utilization"""
-    return jsonify(DEMO_DATA['utilization'])
-
-
-@app.route('/api', methods=['GET'])
-def api_docs():
-    """API Documentation"""
-    return jsonify({
-        'name': 'Crew Dashboard API',
-        'version': '1.0',
-        'endpoints': [
-            {'method': 'GET', 'path': '/api/dashboard', 'description': 'Get all dashboard data'},
-            {'method': 'GET', 'path': '/api/summary', 'description': 'Get summary KPIs'},
-            {'method': 'GET', 'path': '/api/aircraft', 'description': 'Get aircraft list'},
-            {'method': 'GET', 'path': '/api/crew', 'description': 'Get crew statistics'},
-            {'method': 'GET', 'path': '/api/utilization', 'description': 'Get utilization data'}
-        ]
-    })
-
-
-# Vercel handler
-def handler(request):
-    """Vercel serverless function handler"""
-    with app.test_client() as client:
-        response = client.get(request.path)
-        return Response(
-            response.data,
-            status=response.status_code,
-            headers=dict(response.headers)
-        )
+# For local testing
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

@@ -38,3 +38,4 @@ ui-ux-pro-max-skill/
 test_upload.csv
 debug_parser.py
 test_upload.py
+test_supabase.py
