@@ -120,12 +120,24 @@ def load_supabase_data(filter_date=None):
         
         # Add Supabase-specific data
         try:
-            metrics['rolling_hours'] = (db.get_rolling_hours() or [])[:20]
+            # 1. Rolling Hours
+            all_rolling = db.get_rolling_hours() or []
+            metrics['rolling_hours'] = all_rolling[:20]
+            
+            # Recalculate rolling_stats locally from the full list
+            stats = {'normal': 0, 'warning': 0, 'critical': 0}
+            for r in all_rolling:
+                status = r.get('status', 'normal').lower()
+                if status in stats:
+                    stats[status] += 1
+            metrics['rolling_stats'] = stats
+
+            # 2. Crew Schedule Summary
             # Wrap in summary to match template expectation: data.crew_schedule.summary
             summary_data = db.get_crew_schedule_summary(filter_date) or {'SL': 0, 'CSL': 0, 'SBY': 0, 'OSBY': 0}
             metrics['crew_schedule'] = {'summary': summary_data}
-        except:
-            pass
+        except Exception as e:
+            print(f"Error processing Supabase data: {e}")
         
         return metrics, available_dates
     except Exception as e:

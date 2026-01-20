@@ -956,7 +956,7 @@
                             {% for crew in data.rolling_hours[:20] %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>{{ crew.id }}</td>
+                                <td>{{ crew.crew_id }}</td>
                                 <td>{{ crew.name }}</td>
                                 <td>{{ crew.block_28day }}</td>
                                 <td>
@@ -978,7 +978,7 @@
             <!-- Operational Agility -->
             <div>
                 <section class="section-title">Operational Agility</section>
-                <div class="card">
+                <div class="card" style="display: none !important;">
                     <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">Base Status
                         Heatmap</h4>
                     <div class="base-heatmap">
