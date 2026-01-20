@@ -81,10 +81,12 @@ ALTER TABLE rolling_hours ENABLE ROW LEVEL SECURITY;
 ALTER TABLE crew_schedule ENABLE ROW LEVEL SECURITY;
 
 -- Create policies to allow anonymous access (for demo purposes)
-CREATE POLICY "Allow all access to flights" ON flights FOR ALL USING (true);
-CREATE POLICY "Allow all access to ac_utilization" ON ac_utilization FOR ALL USING (true);
-CREATE POLICY "Allow all access to rolling_hours" ON rolling_hours FOR ALL USING (true);
-CREATE POLICY "Allow all access to crew_schedule" ON crew_schedule FOR ALL USING (true);
+-- Create policies to allow anonymous access (for demo purposes)
+-- Note: 'FOR ALL' covers SELECT, INSERT, UPDATE, DELETE
+CREATE POLICY "Allow all access to flights" ON flights FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to ac_utilization" ON ac_utilization FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to rolling_hours" ON rolling_hours FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to crew_schedule" ON crew_schedule FOR ALL USING (true) WITH CHECK (true);
 
 -- =====================================================
 -- VERIFY TABLES CREATED

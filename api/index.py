@@ -177,15 +177,16 @@ def upload_files():
     try:
         if 'dayrep' in request.files and request.files['dayrep'].filename:
             content = request.files['dayrep'].read()
-            processor.process_dayrep_csv(file_content=content)
-            db.insert_flights([{
+            count = processor.process_dayrep_csv(file_content=content)
+            res = db.insert_flights([{
                 'date': f.get('date', ''), 'calendar_date': f.get('calendar_date', ''),
                 'reg': f.get('reg', ''), 'flt': f.get('flt', ''),
                 'dep': f.get('dep', ''), 'arr': f.get('arr', ''),
                 'std': f.get('std', ''), 'sta': f.get('sta', ''),
                 'crew': f.get('crew', '')
             } for f in processor.flights])
-        
+            if res is None: raise Exception("Failed to insert flights to DB. Check RLS policies.")
+
         if 'sacutil' in request.files and request.files['sacutil'].filename:
             content = request.files['sacutil'].read()
             processor.process_sacutil_csv(file_content=content)
@@ -202,7 +203,9 @@ def upload_files():
                         'total_cycles': int(stats.get('total_cycles', 0) or 0),
                         'avg_util': stats.get('avg_util', '')
                     })
-            if util_data: db.insert_ac_utilization(util_data)
+            if util_data:
+                res = db.insert_ac_utilization(util_data)
+                if res is None: raise Exception("Failed to insert AC util to DB.")
         
         if 'rolcrtot' in request.files and request.files['rolcrtot'].filename:
             content = request.files['rolcrtot'].read()
@@ -217,7 +220,9 @@ def upload_files():
                 'percentage': item.get('percentage', 0),
                 'status': item.get('status', 'normal')
             } for item in processor.rolling_hours]
-            if hours_data: db.insert_rolling_hours(hours_data)
+            if hours_data:
+                res = db.insert_rolling_hours(hours_data)
+                if res is None: raise Exception("Failed to insert rolling hours to DB.")
         
         if 'crew_schedule' in request.files and request.files['crew_schedule'].filename:
             content = request.files['crew_schedule'].read()
@@ -227,7 +232,9 @@ def upload_files():
                 for status_type in ['SL', 'CSL', 'SBY', 'OSBY']:
                     for _ in range(counts.get(status_type, 0)):
                         schedule_data.append({'date': date_str, 'status_type': status_type})
-            if schedule_data: db.insert_crew_schedule(schedule_data)
+            if schedule_data:
+                res = db.insert_crew_schedule(schedule_data)
+                if res is None: raise Exception("Failed to insert crew schedule to DB.")
         
         flash('Data uploaded successfully!')
     except Exception as e:
