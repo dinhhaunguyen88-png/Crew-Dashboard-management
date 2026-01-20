@@ -39,29 +39,50 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
-    """Handle file uploads via standard HTML Form"""
+    """Handle file uploads via standard HTML Form - In-Memory Processing for Vercel/Supabase"""
     
-    # Map form field names to filenames
+    # Map form field names to processor methods
     file_map = {
-        'dayrep': 'DayRepReport.csv',
-        'sacutil': 'SacutilReport.csv',
-        'rolcrtot': 'RolCrTotReport.csv',
-        'crew_schedule': 'CrewSchedule.csv'
+        'dayrep': 'process_dayrep_csv',
+        'sacutil': 'process_sacutil_csv',
+        'rolcrtot': 'process_rolcrtot_csv',
+        'crew_schedule': 'process_crew_schedule_csv'
     }
     
+    processor = get_processor()
     uploaded_any = False
     
-    for field_name, target_filename in file_map.items():
+    for field_name, method_name in file_map.items():
         if field_name in request.files:
             file = request.files[field_name]
-            if file and file.filename and allowed_file(file.filename):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], target_filename)
-                file.save(filepath)
-                uploaded_any = True
+            # Check if file is selected
+            if file and file.filename:
+                try:
+                    # Read content into memory
+                    content = file.read()
+                    
+                    # Get the processing method
+                    process_method = getattr(processor, method_name)
+                    
+                    # Process directly with content
+                    # Note: process_* methods in data_processor now support file_content arg
+                    process_method(file_content=content)
+                    
+                    uploaded_any = True
+                    print(f"Processed {field_name} in-memory")
+                except Exception as e:
+                    print(f"Error processing {field_name}: {e}")
     
     if uploaded_any:
         # Refresh data processor to load new files
-        refresh_data()
+        # Actually process_* methods already updated the internal state AND Supabase.
+        # But calling refresh_data() might be redundant if we just processed.
+        # However, to be safe and ensure everything is consistent:
+        # refresh_data() -> loads from Supabase.
+        # Since we just inserted to Supabase, loading again confirms round-trip.
+        # But it might be slow.
+        # Let's rely on the in-memory update done by process_* methods for now.
+        pass
     
     # Redirect back to dashboard
     return redirect(url_for('index'))

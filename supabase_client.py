@@ -1,28 +1,56 @@
 """
 Supabase Client Module for Crew Dashboard
 Handles database operations for storing and retrieving CSV data
+Works with both local development and Vercel deployment
 """
 
 import os
-from dotenv import load_dotenv
-from supabase import create_client, Client
 
-# Load environment variables
-load_dotenv()
+# Try to load dotenv for local development, skip if not available (Vercel)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-# Initialize Supabase client
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Try to import supabase, handle gracefully if not available
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+    Client = None
+
+# Get environment variables - works on both local and Vercel
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
 
 supabase: Client = None
+_init_error = None
 
 def init_supabase():
-    """Initialize Supabase client"""
-    global supabase
-    if SUPABASE_URL and SUPABASE_KEY:
+    """Initialize Supabase client with proper error handling"""
+    global supabase, _init_error
+    
+    if not SUPABASE_AVAILABLE:
+        _init_error = "Supabase package not installed"
+        return False
+    
+    if not SUPABASE_URL:
+        _init_error = "SUPABASE_URL not configured"
+        return False
+    
+    if not SUPABASE_KEY:
+        _init_error = "SUPABASE_KEY not configured"
+        return False
+    
+    try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        _init_error = None
         return True
-    return False
+    except Exception as e:
+        _init_error = f"Failed to create Supabase client: {str(e)}"
+        return False
 
 def get_client() -> Client:
     """Get initialized Supabase client"""
@@ -31,6 +59,10 @@ def get_client() -> Client:
         init_supabase()
     return supabase
 
+def is_connected():
+    """Check if Supabase is properly configured and connected"""
+    return get_client() is not None
+
 
 # ==================== FLIGHTS TABLE ====================
 
@@ -38,18 +70,23 @@ def insert_flights(flights_data: list):
     """Insert flight records from DayRepReport CSV"""
     client = get_client()
     if not client:
+        print(f"Supabase insert_flights failed: {_init_error}")
         return None
     
-    # Clear existing data before insert
-    client.table('flights').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-    
-    # Insert new data in batches of 500
-    batch_size = 500
-    for i in range(0, len(flights_data), batch_size):
-        batch = flights_data[i:i+batch_size]
-        client.table('flights').insert(batch).execute()
-    
-    return len(flights_data)
+    try:
+        # Clear existing data before insert
+        client.table('flights').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        
+        # Insert new data in batches of 500
+        batch_size = 500
+        for i in range(0, len(flights_data), batch_size):
+            batch = flights_data[i:i+batch_size]
+            client.table('flights').insert(batch).execute()
+        
+        return len(flights_data)
+    except Exception as e:
+        print(f"Error inserting flights: {e}")
+        return None
 
 def get_flights(filter_date: str = None):
     """Get flights, optionally filtered by date"""
@@ -57,12 +94,16 @@ def get_flights(filter_date: str = None):
     if not client:
         return []
     
-    query = client.table('flights').select('*')
-    if filter_date:
-        query = query.eq('date', filter_date)
-    
-    result = query.execute()
-    return result.data if result.data else []
+    try:
+        query = client.table('flights').select('*')
+        if filter_date:
+            query = query.eq('date', filter_date)
+        
+        result = query.execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting flights: {e}")
+        return []
 
 def get_available_dates():
     """Get list of unique dates from flights"""
@@ -70,13 +111,20 @@ def get_available_dates():
     if not client:
         return []
     
-    result = client.table('flights').select('date').execute()
-    if result.data:
-        dates = list(set([r['date'] for r in result.data]))
-        # Sort dates chronologically
-        dates.sort(key=lambda d: tuple(map(int, d.split('/')[::-1])))
-        return dates
-    return []
+    try:
+        result = client.table('flights').select('date').execute()
+        if result.data:
+            dates = list(set([r['date'] for r in result.data]))
+            # Sort dates chronologically
+            try:
+                dates.sort(key=lambda d: tuple(map(int, d.split('/')[::-1])))
+            except:
+                dates.sort()
+            return dates
+        return []
+    except Exception as e:
+        print(f"Error getting available dates: {e}")
+        return []
 
 
 # ==================== AC UTILIZATION TABLE ====================
@@ -87,16 +135,20 @@ def insert_ac_utilization(util_data: list):
     if not client:
         return None
     
-    # Clear existing data
-    client.table('ac_utilization').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-    
-    # Insert new data
-    batch_size = 500
-    for i in range(0, len(util_data), batch_size):
-        batch = util_data[i:i+batch_size]
-        client.table('ac_utilization').insert(batch).execute()
-    
-    return len(util_data)
+    try:
+        # Clear existing data
+        client.table('ac_utilization').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        
+        # Insert new data
+        batch_size = 500
+        for i in range(0, len(util_data), batch_size):
+            batch = util_data[i:i+batch_size]
+            client.table('ac_utilization').insert(batch).execute()
+        
+        return len(util_data)
+    except Exception as e:
+        print(f"Error inserting AC utilization: {e}")
+        return None
 
 def get_ac_utilization(filter_date: str = None):
     """Get AC utilization, optionally filtered by date"""
@@ -104,12 +156,16 @@ def get_ac_utilization(filter_date: str = None):
     if not client:
         return []
     
-    query = client.table('ac_utilization').select('*')
-    if filter_date:
-        query = query.eq('date', filter_date)
-    
-    result = query.execute()
-    return result.data if result.data else []
+    try:
+        query = client.table('ac_utilization').select('*')
+        if filter_date:
+            query = query.eq('date', filter_date)
+        
+        result = query.execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting AC utilization: {e}")
+        return []
 
 
 # ==================== ROLLING HOURS TABLE ====================
@@ -120,16 +176,20 @@ def insert_rolling_hours(hours_data: list):
     if not client:
         return None
     
-    # Clear existing data
-    client.table('rolling_hours').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-    
-    # Insert new data
-    batch_size = 500
-    for i in range(0, len(hours_data), batch_size):
-        batch = hours_data[i:i+batch_size]
-        client.table('rolling_hours').insert(batch).execute()
-    
-    return len(hours_data)
+    try:
+        # Clear existing data
+        client.table('rolling_hours').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        
+        # Insert new data
+        batch_size = 500
+        for i in range(0, len(hours_data), batch_size):
+            batch = hours_data[i:i+batch_size]
+            client.table('rolling_hours').insert(batch).execute()
+        
+        return len(hours_data)
+    except Exception as e:
+        print(f"Error inserting rolling hours: {e}")
+        return None
 
 def get_rolling_hours():
     """Get all rolling hours data"""
@@ -137,8 +197,12 @@ def get_rolling_hours():
     if not client:
         return []
     
-    result = client.table('rolling_hours').select('*').order('hours_28day', desc=True).execute()
-    return result.data if result.data else []
+    try:
+        result = client.table('rolling_hours').select('*').order('hours_28day', desc=True).execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting rolling hours: {e}")
+        return []
 
 
 # ==================== CREW SCHEDULE TABLE ====================
@@ -149,16 +213,20 @@ def insert_crew_schedule(schedule_data: list):
     if not client:
         return None
     
-    # Clear existing data
-    client.table('crew_schedule').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-    
-    # Insert new data
-    batch_size = 500
-    for i in range(0, len(schedule_data), batch_size):
-        batch = schedule_data[i:i+batch_size]
-        client.table('crew_schedule').insert(batch).execute()
-    
-    return len(schedule_data)
+    try:
+        # Clear existing data
+        client.table('crew_schedule').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+        
+        # Insert new data
+        batch_size = 500
+        for i in range(0, len(schedule_data), batch_size):
+            batch = schedule_data[i:i+batch_size]
+            client.table('crew_schedule').insert(batch).execute()
+        
+        return len(schedule_data)
+    except Exception as e:
+        print(f"Error inserting crew schedule: {e}")
+        return None
 
 def get_crew_schedule(filter_date: str = None):
     """Get crew schedule, optionally filtered by date"""
@@ -166,12 +234,16 @@ def get_crew_schedule(filter_date: str = None):
     if not client:
         return []
     
-    query = client.table('crew_schedule').select('*')
-    if filter_date:
-        query = query.eq('date', filter_date)
-    
-    result = query.execute()
-    return result.data if result.data else []
+    try:
+        query = client.table('crew_schedule').select('*')
+        if filter_date:
+            query = query.eq('date', filter_date)
+        
+        result = query.execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting crew schedule: {e}")
+        return []
 
 def get_crew_schedule_summary(filter_date: str = None):
     """Get summary counts of crew schedule statuses"""
@@ -188,9 +260,11 @@ def get_crew_schedule_summary(filter_date: str = None):
 
 def check_connection():
     """Check if Supabase connection is working"""
+    global _init_error
+    
     client = get_client()
     if not client:
-        return False, "Supabase credentials not configured"
+        return False, _init_error or "Supabase credentials not configured"
     
     try:
         # Try to query flights table
@@ -198,6 +272,16 @@ def check_connection():
         return True, "Connected successfully"
     except Exception as e:
         return False, str(e)
+
+def get_connection_status():
+    """Get detailed connection status for debugging"""
+    return {
+        'supabase_available': SUPABASE_AVAILABLE,
+        'url_configured': bool(SUPABASE_URL),
+        'key_configured': bool(SUPABASE_KEY),
+        'client_initialized': supabase is not None,
+        'init_error': _init_error
+    }
 
 def clear_all_data():
     """Clear all data from all tables"""

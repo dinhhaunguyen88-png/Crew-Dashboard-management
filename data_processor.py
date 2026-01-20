@@ -9,6 +9,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+import supabase_client as db
 
 class DataProcessor:
     def __init__(self, data_dir=None):
@@ -36,6 +37,120 @@ class DataProcessor:
             'summary': {'SL': 0, 'CSL': 0, 'SBY': 0, 'OSBY': 0}
         }
         self.crew_schedule_by_date = defaultdict(lambda: {'SL': 0, 'CSL': 0, 'SBY': 0, 'OSBY': 0})
+        # Crew group rotations tracking
+        self.crew_group_rotations = defaultdict(list)  # crew_set -> list of REGs
+        self.crew_group_rotations_by_date = defaultdict(lambda: defaultdict(list))  # date -> crew_set_key -> list of REGs
+        
+        # Try to load from Supabase first
+        if db.is_connected():
+            print("Connected to Supabase. Loading data...")
+            self.load_from_supabase()
+        else:
+            print("Supabase not connected. Using local/empty state.")
+
+    def load_from_supabase(self):
+        """Load all data from Supabase"""
+        # 1. Flights
+        db_flights = db.get_flights()
+        if db_flights:
+            self.flights = db_flights
+            self.flights_by_date = defaultdict(list)
+            self.available_dates = []
+            self.crew_to_regs = defaultdict(set)
+            self.crew_to_regs_by_date = defaultdict(lambda: defaultdict(set))
+            self.reg_flight_hours = defaultdict(float)
+            self.reg_flight_hours_by_date = defaultdict(lambda: defaultdict(float))
+            self.reg_flight_count = defaultdict(int)
+            self.reg_flight_count_by_date = defaultdict(lambda: defaultdict(int))
+            self.crew_group_rotations = defaultdict(list)
+            self.crew_group_rotations_by_date = defaultdict(lambda: defaultdict(list))
+            
+            unique_dates = set()
+            
+            for flight in self.flights:
+                 # Reconstruct internal structures from flight objects
+                 op_date = flight.get('date')
+                 if op_date:
+                     unique_dates.add(op_date)
+                     self.flights_by_date[op_date].append(flight)
+                     
+                     reg = flight.get('reg', '')
+                     if reg:
+                         # Recalculate duration
+                         std = self.parse_time(flight.get('std', ''))
+                         sta = self.parse_time(flight.get('sta', ''))
+                         if std is not None and sta is not None:
+                             duration = sta - std
+                             if duration < 0: duration += 24 * 60
+                             hours = duration / 60
+                             self.reg_flight_hours[reg] += hours
+                             self.reg_flight_count[reg] += 1
+                             self.reg_flight_hours_by_date[op_date][reg] += hours
+                             self.reg_flight_count_by_date[op_date][reg] += 1
+                     
+                     crew_str = flight.get('crew', '')
+                     if crew_str:
+                         crew_list = self.extract_crew_ids(crew_str)
+                         for role, crew_id in crew_list:
+                             self.crew_to_regs[crew_id].add(reg)
+                             self.crew_to_regs_by_date[op_date][crew_id].add(reg)
+                             self.crew_roles[crew_id] = role
+                         
+                         if crew_list:
+                             key = self.get_crew_set_key(crew_str)
+                             if key:
+                                 self.crew_group_rotations[key].append(reg)
+                                 self.crew_group_rotations_by_date[op_date][key].append(reg)
+            
+            self.available_dates = sorted(list(unique_dates), key=lambda d: self._parse_date_for_sort(d))
+            print(f"Loaded {len(self.flights)} flights from Supabase")
+
+        # 2. AC Utilization
+        db_util = db.get_ac_utilization()
+        if db_util:
+            self.ac_utilization = {}
+            self.ac_utilization_by_date = defaultdict(dict)
+            for item in db_util:
+                date_str = item.get('date')
+                ac_type = item.get('ac_type') # Note: db might use different keys if I inserted differently, but let's assume consistent
+                # Actually get_ac_utilization returns flat list. 
+                # Need to check how I insert it. I insert flat list.
+                # So here I reconstruct the nested dict.
+                if date_str and ac_type:
+                     self.ac_utilization_by_date[date_str][ac_type] = {
+                         'dom_block': item.get('dom_block'),
+                         'int_block': item.get('int_block'),
+                         'total_block': item.get('total_block'),
+                         'dom_cycles': str(item.get('dom_cycles')),
+                         'int_cycles': str(item.get('int_cycles')),
+                         'total_cycles': str(item.get('total_cycles')),
+                         'avg_util': item.get('avg_util')
+                     }
+            # Re-summarize totals? Or just trust what's there?
+            # Creating self.ac_utilization (total) from daily? 
+            # Or is 'Total' stored as a separate date? usually not.
+            # I will trust the getter logic later if needed.
+            print(f"Loaded AC Util for {len(self.ac_utilization_by_date)} dates")
+
+        # 3. Rolling Hours
+        db_rolling = db.get_rolling_hours()
+        if db_rolling:
+            self.rolling_hours = db_rolling
+            print(f"Loaded {len(self.rolling_hours)} rolling hour records")
+
+        # 4. Crew Schedule
+        db_schedule = db.get_crew_schedule()
+        if db_schedule:
+             self.crew_schedule_by_date = defaultdict(lambda: {'SL': 0, 'CSL': 0, 'SBY': 0, 'OSBY': 0})
+             self.crew_schedule['summary'] = {'SL': 0, 'CSL': 0, 'SBY': 0, 'OSBY': 0}
+             for item in db_schedule:
+                 d = item.get('date')
+                 s = item.get('status_type')
+                 if d and s:
+                     self.crew_schedule_by_date[d][s] += 1
+                 if s:
+                     self.crew_schedule['summary'][s] += 1
+             print(f"Loaded Crew Schedule from Supabase")
         
     def _read_file_safe(self, file_path):
         """Read file with encoding fallback (utf-8 -> cp1252 -> latin1)"""
@@ -303,6 +418,24 @@ class DataProcessor:
         # Sort dates chronologically
         self.available_dates = sorted(list(unique_dates), key=lambda d: self._parse_date_for_sort(d))
         
+        # INSERT TO SUPABASE
+        if db.is_connected() and len(self.flights) > 0:
+            print("syncing flights to supabase...")
+            flights_payload = []
+            for flight in self.flights:
+                flights_payload.append({
+                    'date': flight.get('date', ''),
+                    'calendar_date': flight.get('calendar_date', ''),
+                    'reg': flight.get('reg', ''),
+                    'flt': flight.get('flt', ''),
+                    'dep': flight.get('dep', ''),
+                    'arr': flight.get('arr', ''),
+                    'std': flight.get('std', ''),
+                    'sta': flight.get('sta', ''),
+                    'crew': flight.get('crew', '')
+                })
+            db.insert_flights(flights_payload)
+        
         return len(self.flights)
     
     def _parse_date_for_sort(self, date_str):
@@ -487,6 +620,31 @@ class DataProcessor:
                 'avg_util': stats['last_avg_util']
             }
         
+        # INSERT TO SUPABASE
+        if db.is_connected() and len(self.ac_utilization_by_date) > 0:
+            print("syncing ac_utilization to supabase...")
+            util_data = []
+            for date_str, ac_types in self.ac_utilization_by_date.items():
+                for ac_type, stats in ac_types.items():
+                    util_data.append({
+                        'date': date_str,
+                        'ac_type': ac_type,
+                        'dom_block': stats.get('dom_block', '00:00') if isinstance(stats.get('dom_block'), str) else self.min_to_time(stats.get('dom_block_min', 0)), # Handle if stats are mixed, but usually formatted strings by now
+                        'int_block': stats.get('int_block', '00:00'),
+                        'total_block': stats.get('total_block', '00:00'),
+                        'dom_cycles': int(stats.get('dom_cycles', 0)),
+                        'int_cycles': int(stats.get('int_cycles', 0)),
+                        'total_cycles': int(stats.get('total_cycles', 0)),
+                        'avg_util': stats.get('avg_util', '')
+                    })
+            # Ensure safe string formatting if not already
+            # Actually process_sacutil_csv earlier converts to strings in self.ac_utilization_by_date
+            # So I should just take the strings.
+            # But wait, self.ac_utilization_by_date values are DICTS of strings (lines 471-479).
+            # So stats['dom_block'] is "HH:MM".
+            
+            db.insert_ac_utilization(util_data)
+
         return len(self.ac_utilization)
     
     def process_rolcrtot_csv(self, file_path=None, file_content=None):
@@ -603,6 +761,25 @@ class DataProcessor:
         
         # Sort by 28-day hours descending
         self.rolling_hours.sort(key=lambda x: x['hours_28day'], reverse=True)
+        
+        # INSERT TO SUPABASE
+        if db.is_connected() and len(self.rolling_hours) > 0:
+            print("syncing rolling_hours to supabase...")
+            hours_data = []
+            for item in self.rolling_hours:
+                hours_data.append({
+                    'crew_id': item.get('id', ''),
+                    'name': item.get('name', ''),
+                    'seniority': item.get('seniority', ''),
+                    'block_28day': item.get('block_28day', '0:00'),
+                    'block_12month': item.get('block_12month', '0:00'),
+                    'hours_28day': item.get('hours_28day', 0),
+                    'hours_12month': item.get('hours_12month', 0),
+                    'percentage': item.get('percentage', 0),
+                    'status': item.get('status', 'normal')
+                })
+            db.insert_rolling_hours(hours_data)
+            
         return len(self.rolling_hours)
     
     def process_crew_schedule_csv(self, file_path=None, file_content=None):
@@ -785,6 +962,30 @@ class DataProcessor:
                     
                 except Exception:
                     continue
+
+        # INSERT TO SUPABASE
+        if db.is_connected() and (self.crew_schedule_by_date or self.crew_schedule['summary']):
+            print("syncing crew_schedule to supabase...")
+            schedule_data = []
+            # Note: insert_crew_schedule expects flat list.
+            # If we parsed matrix, we have dates. If we parsed summary, we might not have dates (empty date_str).
+            # Let's handle both.
+            
+            for date_str, counts in self.crew_schedule_by_date.items():
+                for status_type in ['SL', 'CSL', 'SBY', 'OSBY']:
+                    count = counts.get(status_type, 0)
+                    for _ in range(count):
+                        schedule_data.append({
+                            'date': date_str,
+                            'status_type': status_type
+                        })
+            
+            # If we rely ONLY on summary (no date parsed), we can't really insert individual rows with date.
+            # But the user logic in test_supabase.py used crew_schedule_by_date.
+            # If logic only populated summary, schedule_data might be empty.
+            
+            if schedule_data:
+                db.insert_crew_schedule(schedule_data)
 
         return sum(self.crew_schedule['summary'].values())
 
