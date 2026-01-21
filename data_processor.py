@@ -168,6 +168,22 @@ class DataProcessor:
                 print(f"Error reading {file_path}: {e}")
                 return None
         return None
+
+    def _decode_content_safe(self, content_bytes):
+        """Decode bytes with fallback (utf-8 -> cp1252 -> latin1)"""
+        if not content_bytes:
+            return ""
+            
+        encodings = ['utf-8', 'cp1252', 'latin1']
+        for enc in encodings:
+            try:
+                return content_bytes.decode(enc)
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                print(f"Error decoding raw content: {e}")
+                return ""
+        return ""
         
     def parse_time(self, time_str):
         """Parse time string HH:MM to minutes from midnight"""
@@ -303,7 +319,7 @@ class DataProcessor:
         
         rows = []
         if file_content:
-            lines = file_content.decode('utf-8').split('\n')
+            lines = self._decode_content_safe(file_content).split('\n')
             rows = list(csv.reader(lines))
         else:
             # Check if any user uploads exist (User Mode vs Demo Mode)
@@ -455,7 +471,7 @@ class DataProcessor:
         self.ac_utilization_by_date.clear()
         
         if file_content:
-            content = file_content.decode('utf-8')
+            content = self._decode_content_safe(file_content)
         else:
             # check uploads
             uploads_dir = self.data_dir / 'uploads'
@@ -652,7 +668,7 @@ class DataProcessor:
         self.rolling_hours = []
         
         if file_content:
-            content = file_content.decode('utf-8')
+            content = self._decode_content_safe(file_content)
         else:
             # check uploads
             uploads_dir = self.data_dir / 'uploads'
@@ -665,7 +681,7 @@ class DataProcessor:
             elif has_uploads:
                 return 0
             else:
-                file_path = self.data_dir / 'RolCrTotReport.csv'
+                file_path = self.data_dir / 'RolCrTotReport 28Feb26.csv'
             
             try:
                 if file_path and file_path.exists():
@@ -793,7 +809,7 @@ class DataProcessor:
         }
         
         if file_content:
-            content = file_content.decode('utf-8')
+            content = self._decode_content_safe(file_content)
         else:
             # check uploads
             uploads_dir = self.data_dir / 'uploads'
