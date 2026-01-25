@@ -7,3 +7,4 @@ python-dotenv>=1.0.0
 zeep>=4.2.1
 APScheduler>=3.10.0
 pytz>=2023.3
+watchdog>=3.0.0

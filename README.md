@@ -7,6 +7,25 @@ Dashboard quản lý phi hành đoàn với các tính năng:
 - 📈 Rolling block hours tracking (28-day / 365-day limits)
 - 👥 Crew schedule monitoring (Standby, Sick-call, Fatigue)
 
+## ✨ New Features
+
+### 🔄 Automatic CSV Monitoring
+- File watcher tự động phát hiện thay đổi CSV
+- Dashboard tự động refresh khi file thay đổi
+- Không cần refresh thủ công
+
+### 📂 Drag & Drop Upload
+- Kéo thả file CSV trực tiếp
+- Tự động nhận diện loại file
+- Hiển thị kích thước và trạng thái upload
+
+### 🔔 Real-time Notifications
+- Thông báo khi dữ liệu cập nhật
+- Tự động reload trang
+- Luôn hiển thị dữ liệu mới nhất
+
+👉 **Xem chi tiết tại [NEW_FEATURES.md](NEW_FEATURES.md)**
+
 ## Chạy local
 
 ```bash
@@ -49,6 +68,7 @@ Website sẽ có địa chỉ: `https://crew-dashboard.onrender.com`
 | GET | `/api/aircraft` | Danh sách tàu bay |
 | GET | `/api/crew` | Thống kê phi hành đoàn |
 | GET | `/api/utilization` | Dữ liệu aircraft utilization |
+| GET | `/api/check_updates` | Kiểm tra cập nhật dữ liệu (NEW) |
 | POST | `/api/upload/dayrep` | Upload DayRepReport CSV |
 | POST | `/api/upload/sacutil` | Upload SacutilReport CSV |
 | POST | `/api/upload/rolcrtot` | Upload RolCrTotReport CSV |

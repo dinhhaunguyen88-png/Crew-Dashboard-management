@@ -705,42 +705,60 @@
             style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 600px; width: 90%; border: 1px solid var(--border-color); margin: 2rem auto;">
             <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">📂 Upload CSV Data</h3>
 
-            <form action="/upload" method="POST" enctype="multipart/form-data">
+            <!-- Drag & Drop Zone -->
+            <div id="dropZone"
+                style="margin-bottom: 1.5rem; padding: 2rem; border: 2px dashed var(--border-color); border-radius: 12px; text-align: center; background: var(--glass-bg); cursor: pointer; transition: all 0.3s ease;">
+                <div style="color: var(--accent-cyan); font-size: 3rem; margin-bottom: 0.5rem;">📁</div>
+                <p style="color: var(--text-primary); margin-bottom: 0.25rem;"><strong>Drag & Drop CSV files
+                        here</strong></p>
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">or click to browse files</p>
+            </div>
+
+            <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
 
                 <div style="margin-bottom: 1.5rem;">
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">DayRepReport
                         CSV</label>
-                    <input type="file" name="dayrep" accept=".csv"
+                    <input type="file" id="dayrep" name="dayrep" accept=".csv" onchange="updateFileLabel(this)"
                         style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="dayrep-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
                 </div>
 
                 <div style="margin-bottom: 1.5rem;">
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">SacutilReport
                         CSV</label>
-                    <input type="file" name="sacutil" accept=".csv"
+                    <input type="file" id="sacutil" name="sacutil" accept=".csv" onchange="updateFileLabel(this)"
                         style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="sacutil-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
                 </div>
 
                 <div style="margin-bottom: 1.5rem;">
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--accent-yellow); font-size: 0.875rem; font-weight: 600;">📊
                         RolCrTotReport CSV</label>
-                    <input type="file" name="rolcrtot" accept=".csv"
+                    <input type="file" id="rolcrtot" name="rolcrtot" accept=".csv" onchange="updateFileLabel(this)"
                         style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="rolcrtot-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
                 </div>
 
                 <div style="margin-bottom: 1.5rem;">
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--accent-cyan); font-size: 0.875rem; font-weight: 600;">👥
                         Crew Schedule CSV</label>
-                    <input type="file" name="crew_schedule" accept=".csv"
+                    <input type="file" id="crew_schedule" name="crew_schedule" accept=".csv"
+                        onchange="updateFileLabel(this)"
                         style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="crew_schedule-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
                 </div>
 
                 <div style="display: flex; gap: 1rem;">
-                    <button type="submit"
+                    <button type="submit" id="uploadButton"
                         style="flex: 1; padding: 0.75rem; background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer;">
                         ⬆️ Upload & Refresh
                     </button>
@@ -750,6 +768,18 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Auto-Refresh Notification Toast -->
+    <div id="refreshToast"
+        style="display: none; position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, var(--accent-green), #4ade80); color: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 10px 40px rgba(34, 197, 94, 0.4); z-index: 2000; animation: slideIn 0.3s ease;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.5rem;">✅</span>
+            <div>
+                <div style="font-weight: 600; margin-bottom: 0.25rem;">Data Updated!</div>
+                <div style="font-size: 0.875rem; opacity: 0.9;">CSV files changed. Refreshing...</div>
+            </div>
         </div>
     </div>
 
@@ -1366,6 +1396,100 @@
                 window.location.href = '/?source=csv' + (filterDate ? '&date=' + filterDate : '');
             }
         }
+
+        // File label update
+        function updateFileLabel(input) {
+            const label = document.getElementById(input.id + '-label');
+            if (input.files.length > 0) {
+                const file = input.files[0];
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                label.textContent = `✓ ${file.name} (${sizeMB} MB)`;
+                label.style.display = 'block';
+            } else {
+                label.style.display = 'none';
+            }
+        }
+
+        // Drag & Drop functionality
+        const dropZone = document.getElementById('dropZone');
+
+        dropZone.addEventListener('click', () => {
+            document.getElementById('dayrep').click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--accent-cyan)';
+            dropZone.style.background = 'rgba(6, 182, 212, 0.1)';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--border-color)';
+            dropZone.style.background = 'var(--glass-bg)';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--border-color)';
+            dropZone.style.background = 'var(--glass-bg)';
+
+            const files = e.dataTransfer.files;
+            for (let file of files) {
+                const fileName = file.name.toLowerCase();
+                if (fileName.includes('dayrep')) {
+                    document.getElementById('dayrep').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('dayrep'));
+                } else if (fileName.includes('sacutil')) {
+                    document.getElementById('sacutil').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('sacutil'));
+                } else if (fileName.includes('rolcr')) {
+                    document.getElementById('rolcrtot').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('rolcrtot'));
+                } else if (fileName.includes('crew') && fileName.includes('schedule')) {
+                    document.getElementById('crew_schedule').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('crew_schedule'));
+                }
+            }
+        });
+
+        function createFileList(files) {
+            const dataTransfer = new DataTransfer();
+            for (let file of files) {
+                dataTransfer.items.add(file);
+            }
+            return dataTransfer.files;
+        }
+
+        // Auto-refresh check (poll server every 5 seconds)
+        let autoRefreshEnabled = true;
+
+        function checkForUpdates() {
+            if (!autoRefreshEnabled) return;
+
+            fetch('/api/check_updates')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.has_update) {
+                        showRefreshToast();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    }
+                })
+                .catch(err => console.error('Update check failed:', err));
+        }
+
+        function showRefreshToast() {
+            const toast = document.getElementById('refreshToast');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+
+        // Check for updates every 5 seconds
+        setInterval(checkForUpdates, 5000);
 
         // Close modals on outside click
         window.onclick = function (event) {

@@ -1,12 +1,22 @@
+# gitignore for Crew Dashboard
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
 venv/
 env/
-.venv/
+ENV/
+
+# Environment variables
+.env
 
 # IDE
 .vscode/
@@ -14,28 +24,26 @@ env/
 *.swp
 *.swo
 
-# Uploads (contains user data)
-uploads/
-
-# Local development
-.env
+# Logs
 *.log
+aims_errors.log
+
+# Node modules (for deployment tooling)
+node_modules/
+node.zip
+nodejs/
+package-lock.json
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Agent config
-.agent/
-.shared/
-ui-ux-pro-max-skill/
+# Uploads
+uploads/*.csv
 
-# Binaries
-*.exe
-*.dll
+# Temporary files
+*.tmp
+*.bak
 
-# Temp/Test files
-test_upload.csv
-debug_parser.py
-test_upload.py
-test_supabase.py
+# Wrangler
+.wrangler/
