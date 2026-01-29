@@ -138,8 +138,30 @@ class ETLScheduler:
             
             logger.info(f"ETL Job completed in {result['duration_seconds']:.2f}s")
             logger.info(f"Flights: {result['flights_synced']}, Crew: {result['crew_synced']}")
+
+            # 3. Fetch Leg Members (Crew Assignments)
+            logger.info("Fetching leg members (crew assignments)...")
+            total_legs_synced = 0
             
-            # Trigger success callback - trigger if at least flights were synced
+            # Iterate through each day in range
+            current_date = from_date
+            while current_date <= to_date:
+                try:
+                    leg_result = aims_client.fetch_leg_members_per_day(current_date)
+                    if leg_result['success']:
+                        legs = leg_result['legs']
+                        if legs:
+                            self._sync_leg_members_to_supabase(legs, current_date)
+                            total_legs_synced += len(legs)
+                    else:
+                        logger.warning(f"Failed to fetch legs for {current_date.date()}: {leg_result.get('error')}")
+                except Exception as e:
+                    logger.error(f"Error fetching legs for {current_date.date()}: {e}")
+                
+                current_date += timedelta(days=1)
+                
+            result['legs_synced'] = total_legs_synced
+            logger.info(f"Leg members synced: {total_legs_synced}")
             if result['flights_synced'] > 0 and self.on_success:
                 try:
                     self.on_success()
@@ -207,52 +229,70 @@ class ETLScheduler:
         except Exception as e:
             logger.error(f"Error syncing flights to Supabase: {e}")
     
-    def _sync_crew_to_supabase(self, crew_list: list):
-        """Sync crew data to Supabase dim_crew table"""
-        if not crew_list:
+    def _sync_leg_members_to_supabase(self, legs: list, date_obj: datetime):
+        """Sync leg members (crew assignments) to Supabase fact_leg_members table"""
+        if not legs:
             return
             
         try:
             from supabase_client import get_client, is_connected
             
             if not is_connected():
-                logger.warning("Supabase not connected, skipping sync")
                 return
             
             client = get_client()
             
+            # Delete existing records for this date to avoid duplication
+            # Note: Ideally we use upsert, but since this is daily snapshot, delete-insert is safer for sync
+            try:
+                # Format date to match what is stored (DD/MM/YYYY)
+                c_date_str = date_obj.strftime('%d/%m/%Y')
+                # Also handle non-padded versions that might exist
+                bad_date_str = f"{date_obj.day}/{date_obj.month}/{date_obj.year}"
+                
+                client.table('fact_leg_members').delete().eq('leg_date', c_date_str).execute()
+                if bad_date_str != c_date_str:
+                    client.table('fact_leg_members').delete().eq('leg_date', bad_date_str).execute()
+            except Exception as e:
+                logger.warning(f"Could not delete existing leg members for {date_obj}: {e}")
+            
             # Transform for Supabase schema
             records = []
-            for crew in crew_list:
-                record = {
-                    'crew_id': crew.get('crew_id', ''),
-                    'name': crew.get('name', ''),
-                    'short_name': crew.get('short_name', ''),
-                    'qualifications': crew.get('qualifications', ''),
-                    'email': crew.get('email', ''),
-                    'location': crew.get('location', ''),
-                    'source': 'AIMS_API',
-                    'synced_at': datetime.now().isoformat()
-                }
-                records.append(record)
+            for leg in legs:
+                flight_no = leg.get('flight_no', '')
+                reg = leg.get('reg') or leg.get('ac_reg') or '' # normalized in aims client
+                if not reg and 'flight_no' in leg:
+                     # Attempt to find reg from other sources if missing in leg object?
+                     # AIMS FetchLegMembers response usually has reg in the leg object or we must infer it.
+                     pass
+
+                for crew in leg.get('crew', []):
+                    record = {
+                        'leg_date': c_date_str, # Use the padded string we created for deletion
+                        'flight_no': flight_no,
+                        'reg': reg,
+                        'dep': leg.get('dep', ''),
+                        'arr': leg.get('arr', ''),
+                        'std': leg.get('std', ''), # Might be missing in leg object from fetch_leg_members
+                        'sta': leg.get('sta', ''),
+                        'crew_id': crew.get('id', ''),
+                        'crew_name': crew.get('name', ''),
+                        'crew_role': crew.get('role', ''),
+                        'source': 'AIMS_API',
+                        'synced_at': datetime.now().isoformat()
+                    }
+                    records.append(record)
             
-            # Upsert to Supabase dim_crew table
+            # Insert in batches
             if records:
-                try:
-                    client.table('dim_crew').upsert(
-                        records, 
-                        on_conflict='crew_id'
-                    ).execute()
-                    logger.info(f"Synced {len(records)} crew records to Supabase")
-                except Exception as upsert_error:
-                    logger.warning(f"Upsert failed, trying insert: {upsert_error}")
-                    # Fallback to insert if table doesn't support upsert
-                    for batch_start in range(0, len(records), 100):
-                        batch = records[batch_start:batch_start+100]
-                        client.table('dim_crew').insert(batch).execute()
+                # Batch insert (supabase client limit is usually around 10KB payload, safely 100 records)
+                for i in range(0, len(records), 100):
+                    batch = records[i:i+100]
+                    client.table('fact_leg_members').insert(batch).execute()
+                logger.info(f"Synced {len(records)} leg member records for {c_date_str}")
             
         except Exception as e:
-            logger.error(f"Error syncing crew to Supabase: {e}")
+            logger.error(f"Error syncing leg members to Supabase: {e}")
     
     def start(self):
         """Start the scheduler with background jobs"""

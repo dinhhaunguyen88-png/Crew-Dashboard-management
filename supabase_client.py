@@ -98,7 +98,13 @@ def _fetch_all(query_func):
     while True:
         try:
             # Re-generate query for each page to avoid parameter accumulation
-            query = query_func()
+            # Handle both function (to re-generate) or direct query object
+            if callable(query_func):
+                query = query_func()
+            else:
+                # If it's a builder object, we can't easily "reset" it for pagination 
+                # without affecting the original. It's better to use q_func.
+                query = query_func
             result = query.range(start, start + limit - 1).execute()
             data = result.data if result.data else []
             all_data.extend(data)
@@ -487,11 +493,29 @@ def get_fact_leg_members(filter_date: str = None):
         return []
     
     try:
-        query = client.table('fact_leg_members').select('*')
-        if filter_date:
-            query = query.eq('leg_date', filter_date)
+        def q_func():
+            q = client.table('fact_leg_members').select('*')
+            if filter_date:
+                # Handle both 09/01/2026 and 9/1/2026 if necessary
+                if '/' in filter_date:
+                    parts = filter_date.split('/')
+                    if len(parts) == 3:
+                        d, m, y = parts
+                        # Create non-padded version
+                        d_alt = d.lstrip('0') or '0'
+                        m_alt = m.lstrip('0') or '0'
+                        alt_date = f"{d_alt}/{m_alt}/{y}"
+                        if alt_date != filter_date:
+                            q = q.in_('leg_date', [filter_date, alt_date])
+                        else:
+                            q = q.eq('leg_date', filter_date)
+                    else:
+                        q = q.eq('leg_date', filter_date)
+                else:
+                    q = q.eq('leg_date', filter_date)
+            return q
         
-        return _fetch_all(query)
+        return _fetch_all(q_func)
     except Exception as e:
         print(f"Error getting fact_leg_members: {e}")
         return []

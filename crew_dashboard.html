@@ -950,8 +950,13 @@
                 <div class="metric-value">{{ "{:,}".format(data.summary.total_crew) }}</div>
                 <div class="metric-label">Total Crew Operating</div>
                 {% if data.summary.total_crew == 0 and data.summary.total_flights > 0 %}
+                {% if data.is_aims_source %}
+                <span class="metric-trend" style="color: var(--accent-yellow); font-weight: bold;">⚠ API Connected (Crew
+                    Data Empty)</span>
+                {% else %}
                 <span class="metric-trend" style="color: var(--accent-red); font-weight: bold;">⚠ No 'Crew' column in
                     CSV</span>
+                {% endif %}
                 {% else %}
                 <span class="metric-trend">CP: {{ data.crew_roles.CP }} | FO: {{ data.crew_roles.FO }} | PU: {{
                     data.crew_roles.PU }} | FA: {{ data.crew_roles.FA }} (Click to view)</span>
@@ -972,7 +977,11 @@
                 <div class="metric-label">Crew Rotation</div>
                 {% if data.summary.crew_rotation_count == 0 and data.summary.total_flights > 0 and
                 data.summary.total_crew == 0 %}
+                {% if data.is_aims_source %}
+                <span class="metric-trend" style="color: var(--accent-yellow);">⚠ AIMS Data Partial</span>
+                {% else %}
                 <span class="metric-trend" style="color: var(--accent-red);">⚠ Missing Crew Data</span>
+                {% endif %}
                 {% else %}
                 <span class="metric-trend">Groups changing aircraft (Click to view)</span>
                 {% endif %}
@@ -1405,7 +1414,7 @@
 
         // Base Selector Logic
         document.querySelectorAll('.base-btn[data-base]').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function () {
                 const base = this.getAttribute('data-base');
                 const url = new URL(window.location.href);
                 if (base === 'all') {
@@ -1430,14 +1439,14 @@
             });
         }
         setActiveBaseButton();
-            if (input.files.length > 0) {
-                const file = input.files[0];
-                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-                label.textContent = `✓ ${file.name} (${sizeMB} MB)`;
-                label.style.display = 'block';
-            } else {
-                label.style.display = 'none';
-            }
+        if (input.files.length > 0) {
+            const file = input.files[0];
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            label.textContent = `✓ ${file.name} (${sizeMB} MB)`;
+            label.style.display = 'block';
+        } else {
+            label.style.display = 'none';
+        }
         }
 
         // Drag & Drop functionality

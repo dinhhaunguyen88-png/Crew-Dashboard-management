@@ -54,6 +54,13 @@ class DataProcessor:
         # Existing flight keys for incremental updates
         self._existing_flight_keys = set()
         
+        # Tracking and Caching
+        self.source_file = None
+        self.last_sync = None
+        self._aims_cache = {} # key: (date, base), value: (timestamp, data)
+        self._aims_cache_ttl = 300 # 5 minutes
+        self._loaded_crew_dates = set()  # Track which dates have crew data merged
+        
         # Try to load from Supabase first
         if db.is_connected():
             print("Connected to Supabase. Loading data...")
@@ -61,11 +68,6 @@ class DataProcessor:
         else:
             print("Supabase not connected. Using local/empty state.")
 
-        # Tracking and Caching
-        self.source_file = None
-        self.last_sync = None
-        self._aims_cache = {} # key: (date, base), value: (timestamp, data)
-        self._aims_cache_ttl = 300 # 5 minutes
 
     def load_from_supabase(self):
         """Load all data from Supabase"""
@@ -159,6 +161,19 @@ class DataProcessor:
             print(f"DEBUG: Loaded {len(self.aims_flights)} AIMS flights from Supabase. Available dates: {len(self.aims_available_dates)}")
         else:
             print("DEBUG: db.get_fact_actuals() returned empty/None.")
+            
+        # 6b. AIMS Leg Members (Crew Assignments)
+        # Optimized: Only load current date's crew on startup.
+        # Other dates will be loaded on-demand in get_dashboard_data().
+        today_str = datetime.now().strftime('%d/%m/%Y')
+        db_legs = db.get_fact_leg_members(today_str)
+        if db_legs:
+             self._merge_crew_legs(db_legs)
+             self._loaded_crew_dates.add(today_str)
+             print(f"DEBUG: Initial startup crew load: {len(db_legs)} records for {today_str}")
+        else:
+             print(f"DEBUG: No crew data found for {today_str} in Supabase yet.")
+
 
         # 2. AC Utilization
         db_util = db.get_ac_utilization()
@@ -221,6 +236,95 @@ class DataProcessor:
             print("Standby records table empty/missing. Loading from local CSV...")
             self.process_crew_schedule_csv(sync_db=False)  # Don't sync back to DB
             print(f"Loaded {len(self.standby_records)} standby records from local CSV")
+
+    def _merge_crew_legs(self, db_legs):
+        """Helper to merge crew assignment records into flight objects"""
+        if not db_legs or not self.aims_flights:
+            return
+
+        # Map legs to flights by (date, flight_no)
+        legs_map = defaultdict(list)
+        for leg in db_legs:
+            l_date = leg.get('leg_date', '')
+            f_no = leg.get('flight_no', '')
+            
+            # Normalize date to DD/MM/YY
+            try:
+                parts = l_date.split('/')
+                if len(parts) == 3:
+                    d, m, y = parts
+                    d = d.zfill(2)
+                    m = m.zfill(2)
+                    if len(y) == 4: y = y[2:]
+                    l_date = f"{d}/{m}/{y}"
+            except:
+                pass
+            
+            key = (l_date, f_no)
+            legs_map[key].append(leg)
+            
+        # Merge crew into flights
+        crew_assigned_count = 0
+        for flight in self.aims_flights:
+            f_date = flight.get('date', '')
+            f_no = flight.get('flight_no', '')
+            
+            legs = legs_map.get((f_date, f_no))
+            if not legs:
+                if f_no.isdigit(): legs = legs_map.get((f_date, f"VJ{f_no}"))
+                elif f_no.startswith('VJ'): legs = legs_map.get((f_date, f_no[2:]))
+            
+            if legs:
+                crew_parts = []
+                for leg in legs:
+                    c_name = leg.get('crew_name', '').split(' ')[-1].upper()
+                    c_role = leg.get('crew_role', 'FA')
+                    c_id = leg.get('crew_id', '')
+                    crew_parts.append(f"{c_name}({c_role}) {c_id}")
+                
+                if crew_parts:
+                    flight['crew'] = '-'.join(crew_parts)
+                    crew_assigned_count += 1
+        
+        # Re-calculate maps for AIMS with crew data now present
+        self.aims_flights_by_date, self.aims_available_dates, self.aims_reg_flight_hours, \
+        self.aims_reg_flight_count, self.aims_crew_to_regs, self.aims_crew_to_regs_by_date, \
+        self.aims_reg_flight_hours_by_date, self.aims_reg_flight_count_by_date, \
+        self.aims_crew_group_rotations, self.aims_crew_group_rotations_by_date = \
+            self._calculate_kpi_maps(self.aims_flights)
+            
+        print(f"DEBUG: Merged crew data into {crew_assigned_count} flights")
+
+    def _ensure_crew_data_loaded(self, filter_date):
+        """Ensures crew data for a specific date is loaded from Supabase"""
+        if not filter_date or not db.is_connected():
+            return
+            
+        # Normalize filter_date for tracking (expect DD/MM/YY)
+        # Convert to DD/MM/YYYY for Supabase query
+        try:
+            parts = filter_date.split('/')
+            if len(parts) == 3:
+                d, m, y = parts
+                d = d.zfill(2)
+                m = m.zfill(2)
+                if len(y) == 2: y = "20" + y
+                query_date = f"{d}/{m}/{y}"
+            else:
+                query_date = filter_date
+        except:
+            query_date = filter_date
+
+        if filter_date not in self._loaded_crew_dates:
+            print(f"DEBUG: On-demand loading crew data for {filter_date} (Query: {query_date})...")
+            db_legs = db.get_fact_leg_members(query_date)
+            if db_legs:
+                self._merge_crew_legs(db_legs)
+                self._loaded_crew_dates.add(filter_date)
+            else:
+                # Still mark as loaded to prevent repeated empty queries
+                self._loaded_crew_dates.add(filter_date)
+                print(f"DEBUG: No crew data found in DB for {filter_date}")
         
         
     def _read_file_safe(self, file_path):
@@ -1402,7 +1506,7 @@ class DataProcessor:
                         'crew_ids': list(crew_set_key),
                         'crew_count': len(crew_set_key),
                         'role': role,
-                        'regs': sorted(unique_regs_for_group),
+                        'regs': sorted([r for r in unique_regs_for_group if r]),
                         'flights': sorted(list(set(group_flights))),
                         'rotations': len(unique_regs_for_group) - 1
                     })
@@ -1585,6 +1689,9 @@ class DataProcessor:
         
         print(f"DEBUG: get_dashboard_data called. Source={source}, FilterDate={filter_date}. AIMS count={len(self.aims_flights)}")
         
+        if source == 'aims':
+            self._ensure_crew_data_loaded(filter_date)
+            
         # 1. Get base data from selected source
         current_flights = self.flights
         if source == 'aims' and self.aims_flights:
@@ -1977,6 +2084,29 @@ class DataProcessor:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
+
+
+    def calculate_compliance_rate_metric(self):
+        """
+        Calculate Safety Compliance Rate based on fatigue risk management.
+        Throws exception if crew data is empty (Logic Safety).
+        """
+        if not self.rolling_hours:
+            # Check if we have any raw flight data to infer crew exists
+            if (self.flights or self.aims_flights):
+                
+                # We have crew but no rolling hours calculated -> calculate them now on the fly?
+                # For now, just warn or throw if strict
+                # User requirement: "Nếu dữ liệu Crew null, hàm phải throw một Exception cụ thể"
+                if not self.crew_to_regs and not self.aims_crew_to_regs:
+                     raise ValueError("Crew Data Empty: Cannot calculate Compliance Rate")
+            else:
+                 # No data at all
+                 return 100.0
+
+        stats = self.calculate_rolling_28day_stats()
+        return stats['compliance_rate']
+    
     def calculate_rolling_28day_stats(self):
         """
         Calculate rolling 28-day statistics with Alert Matrix
@@ -2016,7 +2146,7 @@ class DataProcessor:
         
         if stats['total_crew'] > 0:
             stats['compliance_rate'] = round(
-                (stats['normal_count'] / stats['total_crew']) * 100, 1
+                ((stats['normal_count'] + stats['warning_count']) / stats['total_crew']) * 100, 1
             )
         
         return stats
