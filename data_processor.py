@@ -61,6 +61,12 @@ class DataProcessor:
         else:
             print("Supabase not connected. Using local/empty state.")
 
+        # Tracking and Caching
+        self.source_file = None
+        self.last_sync = None
+        self._aims_cache = {} # key: (date, base), value: (timestamp, data)
+        self._aims_cache_ttl = 300 # 5 minutes
+
     def load_from_supabase(self):
         """Load all data from Supabase"""
         # 1. Flights
@@ -216,32 +222,6 @@ class DataProcessor:
             self.process_crew_schedule_csv(sync_db=False)  # Don't sync back to DB
             print(f"Loaded {len(self.standby_records)} standby records from local CSV")
         
-        # 6. AIMS Fact Actuals
-        db_aims = db.get_fact_actuals()
-        if db_aims:
-            self.aims_flights = db_aims
-            self.aims_flights_by_date = defaultdict(list)
-            aims_unique_dates = set()
-            for flight in self.aims_flights:
-                # Map AIMS schema to internal schema
-                # Internal schema: date, reg, flt, dep, arr, std, sta, crew
-                # AIMS schema: flight_date, ac_reg, flight_no, departure, arrival, std, sta, status, ...
-                f_date = flight.get('flight_date')
-                if f_date:
-                    # Convert YYYY-MM-DD to DD/MM/YY for consistency in UI if needed
-                    # Actually let's keep it as is or normalize
-                    norm_date = self.normalize_date(f_date.replace('-', '/'))
-                    flight['date'] = norm_date
-                    flight['reg'] = flight.get('ac_reg')
-                    flight['flt'] = flight.get('flight_no')
-                    flight['dep'] = flight.get('departure')
-                    flight['arr'] = flight.get('arrival')
-                    
-                    self.aims_flights_by_date[norm_date].append(flight)
-                    aims_unique_dates.add(norm_date)
-            
-            self.aims_available_dates = sorted(list(aims_unique_dates), key=lambda d: self._parse_date_for_sort(d))
-            print(f"Loaded {len(self.aims_flights)} AIMS flights from Supabase")
         
     def _read_file_safe(self, file_path):
         """Read file with encoding fallback (utf-8 -> cp1252 -> latin1)"""
@@ -454,8 +434,6 @@ class DataProcessor:
                     rows = list(csv.reader(f))
         
         # Auto-detect format from header row (usually row 2 or 3)
-        col_map = None
-        header_row_idx = None
         for i, row in enumerate(rows[:5]):  # Check first 5 rows for header
             if len(row) >= 6:
                 row_lower = [c.lower().strip() for c in row]
@@ -568,7 +546,6 @@ class DataProcessor:
                     'date': flight.get('date', ''),
                     'calendar_date': flight.get('calendar_date', ''),
                     'reg': flight.get('reg', ''),
-                    'ac_type': flight.get('ac_type', 'A320'),  # Include A/C Type
                     'flt': flight.get('flt', ''),
                     'dep': flight.get('dep', ''),
                     'arr': flight.get('arr', ''),
@@ -1621,7 +1598,7 @@ class DataProcessor:
                 'crew_to_regs': self.crew_to_regs,
                 'crew_to_regs_by_date': self.crew_to_regs_by_date,
                 'reg_flight_hours_by_date': self.reg_flight_hours_by_date,
-                'reg_flight_count_by_date': self.reg_flight_count_by_date,
+                'reg_flight_count_by_date': self.aims_reg_flight_count_by_date,
                 'crew_group_rotations': self.crew_group_rotations,
                 'crew_group_rotations_by_date': self.crew_group_rotations_by_date
             }
@@ -1660,13 +1637,40 @@ class DataProcessor:
         return data
 
     def _apply_live_crew_override(self, data, filter_date, current_flights, base=None):
-        """Helper to apply live AIMS crew data over base metrics"""
+        """Helper to apply live AIMS crew data over base metrics.
+        
+        NOTE: Disabled direct API calls to prevent blocking dashboard requests.
+        Crew data is already synced by the ETL scheduler in the background.
+        """
+        # Skip live AIMS API calls - they block the dashboard for ~30 seconds
+        # The ETL scheduler already syncs crew data every 2 minutes
+        return data
+        
+        # Original code kept for reference - can be re-enabled if needed
         try:
             from aims_soap_client import is_aims_available, get_aims_client
             
             if is_aims_available():
                 target_date_str = filter_date or datetime.now().strftime('%d/%m/%y')
                 
+                # Check cache first
+                cache_key = (target_date_str, base)
+                now = datetime.now()
+                if cache_key in self._aims_cache:
+                    cached_time, cached_data = self._aims_cache[cache_key]
+                    if (now - cached_time).total_seconds() < self._aims_cache_ttl:
+                        print(f"DEBUG: Using cached AIMS data for {cache_key}")
+                        # Merge cached live data into current data object
+                        data['crew_schedule']['summary'] = cached_data.get('summary')
+                        data['operating_crew'] = cached_data.get('operating_crew')
+                        data['crew_roles'] = cached_data.get('crew_roles')
+                        data['summary']['total_crew'] = cached_data.get('total_crew_count')
+                        data['summary']['crew_rotation_count'] = cached_data.get('rotation_count')
+                        data['crew_rotations'] = cached_data.get('crew_rotations')
+                        data['data_source_crew'] = 'AIMS Live (Cached)'
+                        data['crew_status_source'] = cached_data.get('status_source')
+                        return data
+
                 # Parse date string to datetime
                 try:
                     parts = target_date_str.split('/')
@@ -1692,6 +1696,7 @@ class DataProcessor:
                             }
                             data['crew_status_source'] = f'AIMS Live (Bulk - {status_res.get("sampled_crew")}/{status_res.get("total_crew")})'
 
+                        # 2. Fetch live operating crew
                         live_data = client.fetch_leg_members_per_day(target_dt)
                         
                         if live_data.get('success'):
@@ -1775,6 +1780,17 @@ class DataProcessor:
                             else:
                                 data['crew_rotations'] = []
                                 data['summary']['crew_rotation_count'] = 0
+
+                        # Update cache
+                        self._aims_cache[cache_key] = (now, {
+                            'summary': data['crew_schedule']['summary'],
+                            'operating_crew': data.get('operating_crew'),
+                            'crew_roles': data.get('crew_roles'),
+                            'total_crew_count': data['summary']['total_crew'],
+                            'rotation_count': data['summary']['crew_rotation_count'],
+                            'crew_rotations': data.get('crew_rotations'),
+                            'status_source': data.get('crew_status_source')
+                        })
                 except Exception as e:
                     print(f"Error applying live crew override: {e}")
         except ImportError:

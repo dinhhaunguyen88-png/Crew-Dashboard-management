@@ -1,0 +1,3050 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crew Management Dashboard - VietJet Air</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: rgba(30, 41, 59, 0.8);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #22c55e;
+            --accent-yellow: #eab308;
+            --accent-red: #ef4444;
+            --accent-cyan: #06b6d4;
+            --border-color: rgba(148, 163, 184, 0.2);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a2e 50%, var(--bg-primary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background animation */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Header */
+        .header {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .base-selector {
+            display: flex;
+            gap: 8px;
+        }
+
+        .base-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .base-btn.active {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            border-color: transparent;
+        }
+
+        .base-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .datetime {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Date Filter Styles */
+        .date-filter-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-filter-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .date-filter-select {
+            padding: 8px 12px;
+            background: #1e293b !important;
+            /* Force solid dark background */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: #ffffff !important;
+            /* Force white text */
+            font-size: 0.875rem;
+            cursor: pointer;
+            min-width: 140px;
+            transition: all 0.3s ease;
+        }
+
+        .date-filter-select option {
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+        }
+
+        .date-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Section Titles */
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 2px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Grid Layouts */
+        .executive-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .two-column-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Metric Cards */
+        .metric-card {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .metric-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+
+        .metric-trend.up {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--accent-green);
+        }
+
+        .metric-trend.down {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+
+        /* Gauge Container */
+        .gauge-container {
+            position: relative;
+            width: 100%;
+            max-width: 200px;
+            margin: 0 auto;
+        }
+
+        .gauge-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .gauge-value .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .gauge-value .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Alert Badges */
+        .alert-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-badge {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .alert-badge.green {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .alert-badge.yellow {
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+
+        .alert-badge.red {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert-count {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .alert-badge.green .alert-count {
+            color: var(--accent-green);
+        }
+
+        .alert-badge.yellow .alert-count {
+            color: var(--accent-yellow);
+        }
+
+        .alert-badge.red .alert-count {
+            color: var(--accent-red);
+        }
+
+        .alert-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        /* Progress Bars */
+        .progress-item {
+            margin-bottom: 1rem;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-fill.green {
+            background: linear-gradient(90deg, var(--accent-green), #4ade80);
+        }
+
+        .progress-fill.yellow {
+            background: linear-gradient(90deg, var(--accent-yellow), #fcd34d);
+        }
+
+        .progress-fill.red {
+            background: linear-gradient(90deg, var(--accent-red), #f87171);
+        }
+
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tbody tr {
+            transition: background 0.2s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Status Indicators */
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-dot.green {
+            background: var(--accent-green);
+        }
+
+        .status-dot.yellow {
+            background: var(--accent-yellow);
+        }
+
+        .status-dot.red {
+            background: var(--accent-red);
+        }
+
+        /* Base Heatmap */
+        .base-heatmap {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .heatmap-item {
+            text-align: center;
+            padding: 1.5rem;
+            border-radius: 12px;
+            background: var(--glass-bg);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .heatmap-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .heatmap-item.high::before {
+            background: var(--accent-green);
+        }
+
+        .heatmap-item.medium::before {
+            background: var(--accent-yellow);
+        }
+
+        .heatmap-item.low::before {
+            background: var(--accent-red);
+        }
+
+        .heatmap-code {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .heatmap-value {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .heatmap-item.high .heatmap-value {
+            color: var(--accent-green);
+        }
+
+        .heatmap-item.medium .heatmap-value {
+            color: var(--accent-yellow);
+        }
+
+        .heatmap-item.low .heatmap-value {
+            color: var(--accent-red);
+        }
+
+        .heatmap-detail {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        /* Ratio Cards */
+        .ratio-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--glass-bg);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .ratio-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .ratio-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .ratio-value.good {
+            color: var(--accent-green);
+        }
+
+        .ratio-value.warning {
+            color: var(--accent-yellow);
+        }
+
+        .ratio-value.danger {
+            color: var(--accent-red);
+        }
+
+        /* Alert List */
+        .alert-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.75rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .alert-item .icon {
+            color: var(--accent-red);
+            font-size: 1rem;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 200px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .executive-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .two-column-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .executive-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .base-heatmap {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Loading Animation */
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .loading {
+            animation: pulse 2s infinite;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-blue);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">✈</div>
+            <span class="logo-text">CREW MANAGEMENT DASHBOARD</span>
+        </div>
+        <div class="header-right">
+            <button class="base-btn" onclick="openUploadModal()"
+                style="background: linear-gradient(135deg, var(--accent-green), #4ade80);">
+                📂 Upload CSV
+            </button>
+            <button class="base-btn" onclick="refreshData()" style="background: var(--accent-blue);">
+                🔄 Refresh
+            </button>
+            <!-- Data Source Toggle -->
+            <div class="date-filter-container">
+                <span class="date-filter-label">📡 Source:</span>
+                <select id="dataSourceToggle" class="date-filter-select" style="min-width: 100px;"
+                    onchange="toggleDataSource(this.value)">
+                    <option value="csv" >CSV Upload</option>
+                    <option value="aims" selected>AIMS API</option>
+                </select>
+                <span id="aimsIndicator" class="date-indicator"
+                    style=" background: linear-gradient(135deg, #06b6d4, #22c55e);">
+                    🔴 Live
+                </span>
+            </div>
+            <div class="date-filter-container">
+                <span class="date-filter-label">📅 Filter Date (62):</span>
+                <select id="dateFilter" class="date-filter-select"
+                    onchange="window.location.href='/?source=aims&date='+this.value">
+                    <option value="">All Dates</option>
+                    
+                    <option value="29/12/25" >29/12/25</option>
+                    
+                    <option value="30/12/25" >30/12/25</option>
+                    
+                    <option value="31/12/25" >31/12/25</option>
+                    
+                    <option value="01/01/26" >01/01/26</option>
+                    
+                    <option value="02/01/26" >02/01/26</option>
+                    
+                    <option value="03/01/26" >03/01/26</option>
+                    
+                    <option value="04/01/26" >04/01/26</option>
+                    
+                    <option value="05/01/26" >05/01/26</option>
+                    
+                    <option value="06/01/26" >06/01/26</option>
+                    
+                    <option value="07/01/26" >07/01/26</option>
+                    
+                    <option value="08/01/26" >08/01/26</option>
+                    
+                    <option value="09/01/26" >09/01/26</option>
+                    
+                    <option value="10/01/26" >10/01/26</option>
+                    
+                    <option value="11/01/26" >11/01/26</option>
+                    
+                    <option value="12/01/26" >12/01/26</option>
+                    
+                    <option value="13/01/26" >13/01/26</option>
+                    
+                    <option value="14/01/26" >14/01/26</option>
+                    
+                    <option value="15/01/26" >15/01/26</option>
+                    
+                    <option value="16/01/26" >16/01/26</option>
+                    
+                    <option value="17/01/26" >17/01/26</option>
+                    
+                    <option value="18/01/26" >18/01/26</option>
+                    
+                    <option value="19/01/26" >19/01/26</option>
+                    
+                    <option value="20/01/26" >20/01/26</option>
+                    
+                    <option value="21/01/26" >21/01/26</option>
+                    
+                    <option value="22/01/26" >22/01/26</option>
+                    
+                    <option value="23/01/26" >23/01/26</option>
+                    
+                    <option value="24/01/26" >24/01/26</option>
+                    
+                    <option value="25/01/26" >25/01/26</option>
+                    
+                    <option value="26/01/26" >26/01/26</option>
+                    
+                    <option value="27/01/26" >27/01/26</option>
+                    
+                    <option value="28/01/26" >28/01/26</option>
+                    
+                    <option value="29/01/26" >29/01/26</option>
+                    
+                    <option value="30/01/26" >30/01/26</option>
+                    
+                    <option value="31/01/26" >31/01/26</option>
+                    
+                    <option value="01/02/26" >01/02/26</option>
+                    
+                    <option value="02/02/26" >02/02/26</option>
+                    
+                    <option value="03/02/26" >03/02/26</option>
+                    
+                    <option value="04/02/26" >04/02/26</option>
+                    
+                    <option value="05/02/26" >05/02/26</option>
+                    
+                    <option value="06/02/26" >06/02/26</option>
+                    
+                    <option value="07/02/26" >07/02/26</option>
+                    
+                    <option value="08/02/26" >08/02/26</option>
+                    
+                    <option value="09/02/26" >09/02/26</option>
+                    
+                    <option value="10/02/26" >10/02/26</option>
+                    
+                    <option value="11/02/26" >11/02/26</option>
+                    
+                    <option value="12/02/26" >12/02/26</option>
+                    
+                    <option value="13/02/26" >13/02/26</option>
+                    
+                    <option value="14/02/26" >14/02/26</option>
+                    
+                    <option value="15/02/26" >15/02/26</option>
+                    
+                    <option value="16/02/26" >16/02/26</option>
+                    
+                    <option value="17/02/26" >17/02/26</option>
+                    
+                    <option value="18/02/26" >18/02/26</option>
+                    
+                    <option value="19/02/26" >19/02/26</option>
+                    
+                    <option value="20/02/26" >20/02/26</option>
+                    
+                    <option value="21/02/26" >21/02/26</option>
+                    
+                    <option value="22/02/26" >22/02/26</option>
+                    
+                    <option value="23/02/26" >23/02/26</option>
+                    
+                    <option value="24/02/26" >24/02/26</option>
+                    
+                    <option value="25/02/26" >25/02/26</option>
+                    
+                    <option value="26/02/26" >26/02/26</option>
+                    
+                    <option value="27/02/26" >27/02/26</option>
+                    
+                    <option value="28/02/26" >28/02/26</option>
+                    
+                </select>
+                <span id="dateIndicator" class="date-indicator" style="display: none;">Filtered</span>
+            </div>
+            <div class="base-selector">
+                <button class="base-btn active" data-base="all">ALL</button>
+                <button class="base-btn" data-base="sgn">SGN</button>
+                <button class="base-btn" data-base="han">HAN</button>
+                <button class="base-btn" data-base="dad">DAD</button>
+            </div>
+            <!-- DB Status Indicator -->
+            <div
+                style="padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px; 
+                 background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">
+                <span
+                    style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80;"></span>
+                DB Connected
+            </div>
+            <div class="datetime">
+                <div id="current-date">15/01/2026</div>
+                <div id="current-time">15:00</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
+        <div
+            style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 600px; width: 90%; border: 1px solid var(--border-color); margin: 2rem auto;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--text-primary);">📂 Upload CSV Data</h3>
+
+            <!-- Drag & Drop Zone -->
+            <div id="dropZone"
+                style="margin-bottom: 1.5rem; padding: 2rem; border: 2px dashed var(--border-color); border-radius: 12px; text-align: center; background: var(--glass-bg); cursor: pointer; transition: all 0.3s ease;">
+                <div style="color: var(--accent-cyan); font-size: 3rem; margin-bottom: 0.5rem;">📁</div>
+                <p style="color: var(--text-primary); margin-bottom: 0.25rem;"><strong>Drag & Drop CSV files
+                        here</strong></p>
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">or click to browse files</p>
+            </div>
+
+            <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">DayRepReport
+                        CSV</label>
+                    <input type="file" id="dayrep" name="dayrep" accept=".csv" onchange="updateFileLabel(this)"
+                        style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="dayrep-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.875rem;">SacutilReport
+                        CSV</label>
+                    <input type="file" id="sacutil" name="sacutil" accept=".csv" onchange="updateFileLabel(this)"
+                        style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="sacutil-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--accent-yellow); font-size: 0.875rem; font-weight: 600;">📊
+                        RolCrTotReport CSV</label>
+                    <input type="file" id="rolcrtot" name="rolcrtot" accept=".csv" onchange="updateFileLabel(this)"
+                        style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="rolcrtot-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--accent-cyan); font-size: 0.875rem; font-weight: 600;">👥
+                        Crew Schedule CSV</label>
+                    <input type="file" id="crew_schedule" name="crew_schedule" accept=".csv"
+                        onchange="updateFileLabel(this)"
+                        style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary);">
+                    <span id="crew_schedule-label"
+                        style="font-size: 0.75rem; color: var(--accent-green); display: none;"></span>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" id="uploadButton"
+                        style="flex: 1; padding: 0.75rem; background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer;">
+                        ⬆️ Upload & Refresh
+                    </button>
+                    <button type="button" onclick="closeUploadModal()"
+                        style="padding: 0.75rem 1.5rem; background: transparent; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-secondary); cursor: pointer;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Auto-Refresh Notification Toast -->
+    <div id="refreshToast"
+        style="display: none; position: fixed; top: 80px; right: 20px; background: linear-gradient(135deg, var(--accent-green), #4ade80); color: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 10px 40px rgba(34, 197, 94, 0.4); z-index: 2000; animation: slideIn 0.3s ease;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.5rem;">✅</span>
+            <div>
+                <div style="font-weight: 600; margin-bottom: 0.25rem;">Data Updated!</div>
+                <div style="font-size: 0.875rem; opacity: 0.9;">CSV files changed. Refreshing...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crew Rotation Modal -->
+    <div id="crewRotationModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
+        <div
+            style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 800px; width: 95%; border: 1px solid var(--border-color); margin: 2rem auto; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="color: var(--text-primary);">✈️ Crew Rotation Details</h3>
+                <button onclick="closeCrewRotationModal()"
+                    style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">×</button>
+            </div>
+
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                Crew groups that changed aircraft during the operating day (04:00-03:59).
+                Each row represents one crew group rotation event.
+            </p>
+
+            <table class="data-table" id="crewRotationTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Crew Count</th>
+                        <th>Lead Role</th>
+                        <th>Aircraft Sequence</th>
+                        <th>Flights</th>
+                        <th>Rotations</th>
+                    </tr>
+                </thead>
+                <tbody id="crewRotationTableBody">
+                    
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Crew Operating Modal -->
+    <div id="crewOperatingModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
+        <div
+            style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 800px; width: 95%; border: 1px solid var(--border-color); margin: 2rem auto; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="color: var(--text-primary);">👥 Crew Operating Details</h3>
+                <button onclick="closeCrewOperatingModal()"
+                    style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">×</button>
+            </div>
+
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                List of all crew members operating on selected date.
+                Sorted by Role and Name.
+            </p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Crew 28-Day History Modal (Drill-down) -->
+    <div id="crewHistoryModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
+        <div
+            style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 900px; width: 95%; border: 1px solid var(--border-color); margin: 2rem auto; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="color: var(--text-primary);">📊 28-Day Flight History</h3>
+                <button onclick="closeCrewHistoryModal()"
+                    style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">×</button>
+            </div>
+
+            <div id="crewHistoryInfo"
+                style="padding: 1rem; background: var(--glass-bg); border-radius: 12px; margin-bottom: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">CREW NAME</div>
+                        <div id="crewHistoryName" style="font-size: 1.25rem; font-weight: 600;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">28-DAY BLOCK HOURS</div>
+                        <div id="crewHistoryHours" style="font-size: 1.25rem; font-weight: 600;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">STATUS</div>
+                        <div id="crewHistoryStatus" style="font-size: 1.25rem; font-weight: 600;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <div style="height: 10px; background: var(--bg-primary); border-radius: 5px; overflow: hidden;">
+                    <div id="crewHistoryProgressBar" class="progress-fill green" style="width: 0%; height: 100%;"></div>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    <span>0h</span>
+                    <span>85h (Warning)</span>
+                    <span>95h (Critical)</span>
+                    <span>100h</span>
+                </div>
+            </div>
+
+            <h4 style="margin: 1rem 0; color: var(--text-secondary); font-size: 0.875rem;">Flight Details (Last 28 Days)
+            </h4>
+            <table class="data-table" id="crewHistoryTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Flight</th>
+                        <th>Route</th>
+                        <th>DEP</th>
+                        <th>ARR</th>
+                        <th>Block Time</th>
+                    </tr>
+                </thead>
+                <tbody id="crewHistoryTableBody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-secondary);">Select a crew member
+                            to view history</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Executive Summary Section -->
+        <section class="section-title">Executive Summary</section>
+        <div class="executive-grid">
+            <div class="card metric-card" onclick="openAircraftFlyingModal()" style="cursor: pointer;">
+                <div class="metric-value">97</div>
+                <div class="metric-label">Total Aircraft Flying</div>
+                <span class="metric-trend up">REGs operating today (Click to view)</span>
+            </div>
+            <div class="card metric-card">
+                <div class="metric-value">29298</div>
+                <div class="metric-label">Total Flights</div>
+                
+                <span class="metric-trend">No change vs yesterday</span>
+                
+            </div>
+            <div class="card metric-card" onclick="openCrewOperatingModal()" style="cursor: pointer;">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Total Crew Operating</div>
+                
+                <span class="metric-trend" style="color: var(--accent-red); font-weight: bold;">⚠ No 'Crew' column in
+                    CSV</span>
+                
+            </div>
+            <div class="card metric-card">
+                <div class="metric-value">731.0h</div>
+                <div class="metric-label">Avg Flight Hours/Aircraft</div>
+                <span class="metric-trend up">Total: 70,909h</span>
+            </div>
+        </div>
+
+        <!-- Second Row - Charts (Simplified) -->
+        <div class="executive-grid" style="margin-top: 1.5rem;">
+            <div class="card metric-card" onclick="openCrewRotationModal()" style="cursor: pointer;">
+                <div class="metric-value" id="crewRotationCount" style="color: var(--accent-yellow);">0</div>
+                <div class="metric-label">Crew Rotation</div>
+                
+                <span class="metric-trend" style="color: var(--accent-red);">⚠ Missing Crew Data</span>
+                
+            </div>
+            <div class="card metric-card">
+                <div class="metric-value" id="totalBlockHours">70,909h
+                </div>
+                <div class="metric-label">COM Block Hour</div>
+                <span class="metric-trend up">Based on filtered flights</span>
+            </div>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div class="two-column-grid">
+            <!-- Safety & Compliance -->
+            <div>
+                <section class="section-title">Safety & Compliance</section>
+                <div class="card">
+                    <!-- Alert Summary -->
+                    <div class="alert-grid" id="alertGrid">
+                        <div class="alert-badge green">
+                            <div class="alert-count" id="alertNormal">2400</div>
+                            <div class="alert-label">Normal</div>
+                        </div>
+                        <div class="alert-badge yellow">
+                            <div class="alert-count" id="alertWarning">702</div>
+                            <div class="alert-label">Warning >85%</div>
+                        </div>
+                        <div class="alert-badge red">
+                            <div class="alert-count" id="alertCritical">171</div>
+                            <div class="alert-label">Critical >95%</div>
+                        </div>
+                    </div>
+
+                    <!-- Compliance Gauge -->
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding: 1rem; background: var(--glass-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                        <div style="flex: 1;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                COMPLIANCE RATE</div>
+                            <div
+                                style="font-size: 2rem; font-weight: 700; color: var(--accent-yellow);">
+                                73.3%
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Crew within safe limits</div>
+                        </div>
+                        <div class="gauge-container" style="max-width: 120px;">
+                            <canvas id="complianceGauge" width="120" height="120"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Flight Hour Limits - Dynamic from rolling_hours -->
+                    <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">28-Day Flight
+                        Hour Limits</h4>
+
+                    
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span>LINH 115 NGUYEN DIEU</span>
+                            <span
+                                style="color: var(--accent-red);">100:35 / 100h (100.6%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 100%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span>LINH 97 NGUYEN THI DIEU</span>
+                            <span
+                                style="color: var(--accent-red);">100:28 / 100h (100.5%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 100%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span>NGOC 54 CAO BICH</span>
+                            <span
+                                style="color: var(--accent-red);">100:25 / 100h (100.4%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 100%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span>PHUONG 56 QUACH THU</span>
+                            <span
+                                style="color: var(--accent-red);">100:00 / 100h (100.0%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 100.0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-item">
+                        <div class="progress-header">
+                            <span>ANH 49 TRAN TUAN</span>
+                            <span
+                                style="color: var(--accent-red);">99:59 / 100h (100.0%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 100.0%"></div>
+                        </div>
+                    </div>
+                    
+                </div>
+
+                <!-- Top 20 High-Intensity Crew -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">Top 20
+                        High-Intensity Crew (Rolling 28 Days)</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>28-Day Hours</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rollingHoursTableBody">
+                            
+                            <tr>
+                                <td>1</td>
+                                <td></td>
+                                <td>LINH 115 NGUYEN DIEU</td>
+                                <td>100:35</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>2</td>
+                                <td></td>
+                                <td>LINH 97 NGUYEN THI DIEU</td>
+                                <td>100:28</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>3</td>
+                                <td></td>
+                                <td>NGOC 54 CAO BICH</td>
+                                <td>100:25</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>4</td>
+                                <td></td>
+                                <td>PHUONG 56 QUACH THU</td>
+                                <td>100:00</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>5</td>
+                                <td></td>
+                                <td>ANH 49 TRAN TUAN</td>
+                                <td>99:59</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>6</td>
+                                <td></td>
+                                <td>NGA 17 NGUYEN THI</td>
+                                <td>99:58</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>7</td>
+                                <td></td>
+                                <td>ANH 178 PHAM MINH</td>
+                                <td>99:58</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>8</td>
+                                <td></td>
+                                <td>NHI 17 NGUYEN THAO</td>
+                                <td>99:50</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>9</td>
+                                <td></td>
+                                <td>HANG 36 TRAN THUY</td>
+                                <td>99:49</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>10</td>
+                                <td></td>
+                                <td>QUYNH 45 NGUYEN THI DIEM</td>
+                                <td>99:37</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>11</td>
+                                <td></td>
+                                <td>DUY 36 VU HOANG</td>
+                                <td>99:33</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>12</td>
+                                <td></td>
+                                <td>HUY 53 LE QUANG</td>
+                                <td>99:30</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>13</td>
+                                <td></td>
+                                <td>PHUONG 48 NGUYEN THU</td>
+                                <td>99:30</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>14</td>
+                                <td></td>
+                                <td>TIEP 2 LE QUANG</td>
+                                <td>99:30</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>15</td>
+                                <td></td>
+                                <td>NHUNG 40 LE THI HONG</td>
+                                <td>99:25</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>16</td>
+                                <td></td>
+                                <td>VAN 38 NGUYEN THI</td>
+                                <td>99:25</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>17</td>
+                                <td></td>
+                                <td>HIEU 39 PHAN DUC</td>
+                                <td>99:20</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>18</td>
+                                <td></td>
+                                <td>OANH 22 NGUYEN THI</td>
+                                <td>99:20</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>19</td>
+                                <td></td>
+                                <td>VAN 42 NGUYEN THI HONG</td>
+                                <td>99:20</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                            <tr>
+                                <td>20</td>
+                                <td></td>
+                                <td>HA 14 DAO MANH</td>
+                                <td>99:20</td>
+                                <td>
+                                    
+                                    <span class="status-dot red"></span>Critical
+                                    
+                                </td>
+                            </tr>
+                            
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 12-Month Flight Hour Limits -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">12-Month Flight
+                        Hour Limits (1000h max)</h4>
+
+                    
+                    
+                     <div class="progress-item">
+                        <div class="progress-header">
+                            <span>UYEN 25 KIEU HONG</span>
+                            <span
+                                style="color: var(--accent-red);">997:30 / 1000h (99.8%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 99.75%"></div>
+                        </div>
+                </div>
+                
+                
+                     <div class="progress-item">
+                        <div class="progress-header">
+                            <span>TIEP 2 LE QUANG</span>
+                            <span
+                                style="color: var(--accent-red);">993:41 / 1000h (99.4%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 99.368%"></div>
+                        </div>
+                </div>
+                
+                
+                     <div class="progress-item">
+                        <div class="progress-header">
+                            <span>THAO 81 TA PHUONG</span>
+                            <span
+                                style="color: var(--accent-red);">988:44 / 1000h (98.9%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 98.873%"></div>
+                        </div>
+                </div>
+                
+                
+                     <div class="progress-item">
+                        <div class="progress-header">
+                            <span>HA 14 DAO MANH</span>
+                            <span
+                                style="color: var(--accent-red);">983:28 / 1000h (98.3%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 98.34700000000001%"></div>
+                        </div>
+                </div>
+                
+                
+                     <div class="progress-item">
+                        <div class="progress-header">
+                            <span>HUNG 12 NGUYEN QUANG</span>
+                            <span
+                                style="color: var(--accent-red);">982:07 / 1000h (98.2%)</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill red"
+                                style="width: 98.212%"></div>
+                        </div>
+                </div>
+                
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+                    
+                
+            </div>
+
+            <!-- Top 20 High-Intensity Crew (12-Month) -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">Top 20
+                    High-Intensity Crew (Rolling 12 Months)</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>12-Month Hours</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        
+                         <tr>
+                            <td>1</td>
+                            <td></td>
+                            <td>UYEN 25 KIEU HONG</td>
+                            <td>997:30</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>2</td>
+                            <td></td>
+                            <td>TIEP 2 LE QUANG</td>
+                            <td>993:41</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>3</td>
+                            <td></td>
+                            <td>THAO 81 TA PHUONG</td>
+                            <td>988:44</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>4</td>
+                            <td></td>
+                            <td>HA 14 DAO MANH</td>
+                            <td>983:28</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>5</td>
+                            <td></td>
+                            <td>HUNG 12 NGUYEN QUANG</td>
+                            <td>982:07</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>6</td>
+                            <td></td>
+                            <td>LINH 115 NGUYEN DIEU</td>
+                            <td>980:30</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>7</td>
+                            <td></td>
+                            <td>LINH 82 DAO VU PHUONG</td>
+                            <td>980:08</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>8</td>
+                            <td></td>
+                            <td>HOAI 3 DANG THI</td>
+                            <td>976:57</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>9</td>
+                            <td></td>
+                            <td>ANH 178 PHAM MINH</td>
+                            <td>971:01</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>10</td>
+                            <td></td>
+                            <td>VAN 38 NGUYEN THI</td>
+                            <td>970:18</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>11</td>
+                            <td></td>
+                            <td>ANH 49 TRAN TUAN</td>
+                            <td>963:49</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>12</td>
+                            <td></td>
+                            <td>HANH 32 NGUYEN THI HONG</td>
+                            <td>963:49</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>13</td>
+                            <td></td>
+                            <td>PHUONG 48 NGUYEN THU</td>
+                            <td>959:44</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>14</td>
+                            <td></td>
+                            <td>NGOC 54 CAO BICH</td>
+                            <td>958:00</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>15</td>
+                            <td></td>
+                            <td>LONG 30 NGUYEN THANH</td>
+                            <td>954:14</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>16</td>
+                            <td></td>
+                            <td>KIM 3 NGUYEN THIEN</td>
+                            <td>953:54</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>17</td>
+                            <td></td>
+                            <td>LINH 104 TRUONG THI THUY</td>
+                            <td>953:53</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>18</td>
+                            <td></td>
+                            <td>YEN 35 DINH THI HAI</td>
+                            <td>952:46</td>
+                            <td>
+                                
+                                <span class="status-dot red"></span>Critical
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>19</td>
+                            <td></td>
+                            <td>THANG 16 NGUYEN DINH</td>
+                            <td>946:38</td>
+                            <td>
+                                
+                                <span class="status-dot yellow"></span>Warning
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                         <tr>
+                            <td>20</td>
+                            <td></td>
+                            <td>TAN 16 NGUYEN HUY</td>
+                            <td>943:14</td>
+                            <td>
+                                
+                                <span class="status-dot yellow"></span>Warning
+                                
+                            </td>
+                            </tr>
+                            
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                        
+                            
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <!-- Operational Agility -->
+        <div>
+            <section class="section-title">Operational Agility</section>
+            <div class="card" style="display: none !important;">
+                <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">Base Status
+                    Heatmap</h4>
+                <div class="base-heatmap">
+                    <div class="heatmap-item high">
+                        <div class="heatmap-code">SGN</div>
+                        <div class="heatmap-value">65</div>
+                        <div class="heatmap-detail">Active Crew</div>
+                        <div class="heatmap-detail">SBY: 36 | Sick: 2</div>
+                    </div>
+                    <div class="heatmap-item high">
+                        <div class="heatmap-code">HAN</div>
+                        <div class="heatmap-value">67</div>
+                        <div class="heatmap-detail">Active Crew</div>
+                        <div class="heatmap-detail">SBY: 56 | Sick: 1</div>
+                    </div>
+                    <div class="heatmap-item medium">
+                        <div class="heatmap-code">DAD</div>
+                        <div class="heatmap-value">14</div>
+                        <div class="heatmap-detail">Active Crew</div>
+                        <div class="heatmap-detail">SBY: 12 | Sick: 1</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crew Status Cards (SBY, OSBY, SL, CSL) -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                    👥 Crew Status (All Dates)
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                    <!-- SBY -->
+                    <div
+                        style="text-align: center; padding: 1.25rem 1rem; background: rgba(34, 197, 94, 0.1); border-radius: 12px; border: 1px solid rgba(34, 197, 94, 0.3);">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent-green);">24</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">SBY</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary);">Standby</div>
+                    </div>
+                    <!-- OSBY -->
+                    <div
+                        style="text-align: center; padding: 1.25rem 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent-blue);">2</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">OSBY</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary);">Office Standby</div>
+                    </div>
+                    <!-- SL -->
+                    <div
+                        style="text-align: center; padding: 1.25rem 1rem; background: rgba(251, 191, 36, 0.1); border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.3);">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent-yellow);">2</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">SL</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary);">Sick Leave</div>
+                    </div>
+                    <!-- CSL -->
+                    <div
+                        style="text-align: center; padding: 1.25rem 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent-red);">1</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">CSL</div>
+                        <div style="font-size: 0.7rem; color: var(--text-secondary);">Call-Sick</div>
+                    </div>
+                </div>
+                <!-- Totals Row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">✅ Total Available (SBY +
+                            OSBY)</span>
+                        <span style="font-weight: 700; font-size: 1.1rem; color: var(--accent-green);">26</span>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">⚠️ Total Absent (SL +
+                            CSL)</span>
+                        <span style="font-weight: 700; font-size: 1.1rem; color: var(--accent-red);">3</span>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+            <!-- Aircraft Utilization -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;"
+                    id="utilizationTitle">Aircraft
+                    Utilization (All Dates)</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Aircraft</th>
+                            <th>Dom Block</th>
+                            <th>Int Block</th>
+                            <th>Total</th>
+                            <th>Avg Util</th>
+                        </tr>
+                    </thead>
+                    <tbody id="utilizationTableBody">
+                        
+                        <tr>
+                            <td>320</td>
+                            <td>65:45</td>
+                            <td>100:00</td>
+                            <td>165:45</td>
+                            <td>11:03</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>321</td>
+                            <td>240:50</td>
+                            <td>570:40</td>
+                            <td>811:30</td>
+                            <td>12:40</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>330</td>
+                            <td>16:00</td>
+                            <td>92:05</td>
+                            <td>108:05</td>
+                            <td>13:30</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <script>
+        // Inject Data from Server
+        const dashboardData = {"aircraft": [{"avg_per_flight": 1.5, "flights": 245, "reg": "B-652G", "total_hours": 358.0}, {"avg_per_flight": 1.5, "flights": 156, "reg": "B-656E", "total_hours": 227.5}, {"avg_per_flight": 1.7, "flights": 466, "reg": "LY-MLI", "total_hours": 789.5}, {"avg_per_flight": 1.7, "flights": 469, "reg": "LY-MLN", "total_hours": 786.2}, {"avg_per_flight": 1.7, "flights": 468, "reg": "LY-NVE", "total_hours": 786.0}, {"avg_per_flight": 1.6, "flights": 451, "reg": "LY-NVG", "total_hours": 713.5}, {"avg_per_flight": 2.0, "flights": 1, "reg": "TEST-JET", "total_hours": 2.0}, {"avg_per_flight": 2.8, "flights": 299, "reg": "VN-A500", "total_hours": 823.8}, {"avg_per_flight": 2.9, "flights": 268, "reg": "VN-A516", "total_hours": 767.5}, {"avg_per_flight": 2.7, "flights": 307, "reg": "VN-A522", "total_hours": 841.3}, {"avg_per_flight": 2.8, "flights": 278, "reg": "VN-A523", "total_hours": 790.9}, {"avg_per_flight": 2.6, "flights": 330, "reg": "VN-A525", "total_hours": 849.8}, {"avg_per_flight": 2.8, "flights": 294, "reg": "VN-A526", "total_hours": 833.4}, {"avg_per_flight": 2.2, "flights": 1, "reg": "VN-A527", "total_hours": 2.2}, {"avg_per_flight": 2.8, "flights": 312, "reg": "VN-A528", "total_hours": 867.0}, {"avg_per_flight": 2.2, "flights": 2, "reg": "VN-A531", "total_hours": 4.4}, {"avg_per_flight": 3.0, "flights": 278, "reg": "VN-A532", "total_hours": 833.8}, {"avg_per_flight": 2.7, "flights": 301, "reg": "VN-A534", "total_hours": 814.7}, {"avg_per_flight": 2.6, "flights": 310, "reg": "VN-A535", "total_hours": 805.3}, {"avg_per_flight": 3.8, "flights": 240, "reg": "VN-A536", "total_hours": 912.4}, {"avg_per_flight": 2.7, "flights": 297, "reg": "VN-A537", "total_hours": 791.4}, {"avg_per_flight": 3.0, "flights": 275, "reg": "VN-A538", "total_hours": 811.8}, {"avg_per_flight": 3.0, "flights": 261, "reg": "VN-A539", "total_hours": 775.4}, {"avg_per_flight": 2.2, "flights": 1, "reg": "VN-A540", "total_hours": 2.2}, {"avg_per_flight": 3.1, "flights": 277, "reg": "VN-A542", "total_hours": 850.5}, {"avg_per_flight": 2.5, "flights": 306, "reg": "VN-A544", "total_hours": 771.3}, {"avg_per_flight": 3.2, "flights": 281, "reg": "VN-A545", "total_hours": 889.1}, {"avg_per_flight": 2.9, "flights": 290, "reg": "VN-A546", "total_hours": 833.1}, {"avg_per_flight": 2.8, "flights": 304, "reg": "VN-A547", "total_hours": 859.3}, {"avg_per_flight": 3.0, "flights": 267, "reg": "VN-A548", "total_hours": 810.1}, {"avg_per_flight": 3.5, "flights": 237, "reg": "VN-A549", "total_hours": 834.6}, {"avg_per_flight": 3.2, "flights": 249, "reg": "VN-A550", "total_hours": 793.9}, {"avg_per_flight": 2.9, "flights": 297, "reg": "VN-A552", "total_hours": 866.8}, {"avg_per_flight": 1.7, "flights": 239, "reg": "VN-A553", "total_hours": 404.0}, {"avg_per_flight": 1.7, "flights": 225, "reg": "VN-A554", "total_hours": 380.2}, {"avg_per_flight": 1.8, "flights": 218, "reg": "VN-A575", "total_hours": 381.7}, {"avg_per_flight": 3.2, "flights": 267, "reg": "VN-A578", "total_hours": 850.5}, {"avg_per_flight": 2.6, "flights": 277, "reg": "VN-A580", "total_hours": 720.7}, {"avg_per_flight": 3.8, "flights": 248, "reg": "VN-A607", "total_hours": 937.3}, {"avg_per_flight": 2.8, "flights": 242, "reg": "VN-A629", "total_hours": 676.6}, {"avg_per_flight": 2.8, "flights": 289, "reg": "VN-A630", "total_hours": 821.0}, {"avg_per_flight": 1.7, "flights": 364, "reg": "VN-A632", "total_hours": 608.5}, {"avg_per_flight": 2.5, "flights": 331, "reg": "VN-A633", "total_hours": 835.1}, {"avg_per_flight": 2.9, "flights": 274, "reg": "VN-A634", "total_hours": 798.1}, {"avg_per_flight": 1.7, "flights": 384, "reg": "VN-A635", "total_hours": 648.8}, {"avg_per_flight": 2.8, "flights": 287, "reg": "VN-A636", "total_hours": 793.7}, {"avg_per_flight": 1.7, "flights": 366, "reg": "VN-A637", "total_hours": 609.3}, {"avg_per_flight": 1.7, "flights": 360, "reg": "VN-A639", "total_hours": 595.4}, {"avg_per_flight": 2.6, "flights": 307, "reg": "VN-A640", "total_hours": 786.0}, {"avg_per_flight": 2.4, "flights": 306, "reg": "VN-A641", "total_hours": 724.6}, {"avg_per_flight": 1.6, "flights": 392, "reg": "VN-A642", "total_hours": 645.3}, {"avg_per_flight": 1.5, "flights": 408, "reg": "VN-A643", "total_hours": 619.1}, {"avg_per_flight": 1.7, "flights": 325, "reg": "VN-A644", "total_hours": 556.1}, {"avg_per_flight": 2.7, "flights": 300, "reg": "VN-A645", "total_hours": 800.8}, {"avg_per_flight": 3.8, "flights": 219, "reg": "VN-A646", "total_hours": 839.0}, {"avg_per_flight": 2.6, "flights": 248, "reg": "VN-A647", "total_hours": 646.2}, {"avg_per_flight": 2.9, "flights": 295, "reg": "VN-A648", "total_hours": 841.8}, {"avg_per_flight": 2.9, "flights": 265, "reg": "VN-A649", "total_hours": 758.1}, {"avg_per_flight": 2.0, "flights": 374, "reg": "VN-A650", "total_hours": 747.6}, {"avg_per_flight": 3.0, "flights": 287, "reg": "VN-A651", "total_hours": 853.0}, {"avg_per_flight": 3.8, "flights": 242, "reg": "VN-A653", "total_hours": 925.2}, {"avg_per_flight": 1.9, "flights": 355, "reg": "VN-A655", "total_hours": 687.6}, {"avg_per_flight": 2.2, "flights": 351, "reg": "VN-A656", "total_hours": 779.0}, {"avg_per_flight": 2.8, "flights": 296, "reg": "VN-A657", "total_hours": 826.3}, {"avg_per_flight": 3.2, "flights": 349, "reg": "VN-A658", "total_hours": 1104.1}, {"avg_per_flight": 2.5, "flights": 234, "reg": "VN-A661", "total_hours": 596.6}, {"avg_per_flight": 2.2, "flights": 358, "reg": "VN-A662", "total_hours": 802.5}, {"avg_per_flight": 2.1, "flights": 310, "reg": "VN-A663", "total_hours": 659.4}, {"avg_per_flight": 2.3, "flights": 218, "reg": "VN-A666", "total_hours": 495.5}, {"avg_per_flight": 2.9, "flights": 275, "reg": "VN-A667", "total_hours": 803.8}, {"avg_per_flight": 2.4, "flights": 363, "reg": "VN-A668", "total_hours": 886.6}, {"avg_per_flight": 2.3, "flights": 348, "reg": "VN-A669", "total_hours": 800.8}, {"avg_per_flight": 2.7, "flights": 248, "reg": "VN-A670", "total_hours": 664.0}, {"avg_per_flight": 2.3, "flights": 368, "reg": "VN-A671", "total_hours": 845.2}, {"avg_per_flight": 2.4, "flights": 347, "reg": "VN-A672", "total_hours": 844.3}, {"avg_per_flight": 2.7, "flights": 276, "reg": "VN-A673", "total_hours": 757.4}, {"avg_per_flight": 3.1, "flights": 270, "reg": "VN-A674", "total_hours": 835.0}, {"avg_per_flight": 2.3, "flights": 379, "reg": "VN-A675", "total_hours": 861.0}, {"avg_per_flight": 2.4, "flights": 331, "reg": "VN-A676", "total_hours": 803.8}, {"avg_per_flight": 2.4, "flights": 301, "reg": "VN-A677", "total_hours": 727.8}, {"avg_per_flight": 2.9, "flights": 196, "reg": "VN-A683", "total_hours": 573.1}, {"avg_per_flight": 3.0, "flights": 205, "reg": "VN-A684", "total_hours": 617.6}, {"avg_per_flight": 1.7, "flights": 323, "reg": "VN-A685", "total_hours": 546.0}, {"avg_per_flight": 2.8, "flights": 269, "reg": "VN-A687", "total_hours": 761.0}, {"avg_per_flight": 2.3, "flights": 344, "reg": "VN-A689", "total_hours": 807.5}, {"avg_per_flight": 2.9, "flights": 294, "reg": "VN-A693", "total_hours": 854.5}, {"avg_per_flight": 2.8, "flights": 332, "reg": "VN-A697", "total_hours": 931.7}, {"avg_per_flight": 2.8, "flights": 276, "reg": "VN-A698", "total_hours": 764.7}, {"avg_per_flight": 4.5, "flights": 222, "reg": "VN-A699", "total_hours": 999.4}, {"avg_per_flight": 5.4, "flights": 175, "reg": "VN-A810", "total_hours": 938.4}, {"avg_per_flight": 4.2, "flights": 177, "reg": "VN-A811", "total_hours": 748.9}, {"avg_per_flight": 4.4, "flights": 189, "reg": "VN-A812", "total_hours": 823.8}, {"avg_per_flight": 5.9, "flights": 153, "reg": "VN-A814", "total_hours": 905.3}, {"avg_per_flight": 5.0, "flights": 174, "reg": "VN-A815", "total_hours": 869.2}, {"avg_per_flight": 4.8, "flights": 194, "reg": "VN-A816", "total_hours": 930.7}, {"avg_per_flight": 4.3, "flights": 184, "reg": "VN-A817", "total_hours": 783.7}, {"avg_per_flight": 4.2, "flights": 185, "reg": "VN-A820", "total_hours": 770.5}], "available_dates": ["29/12/25", "30/12/25", "31/12/25", "01/01/26", "02/01/26", "03/01/26", "04/01/26", "05/01/26", "06/01/26", "07/01/26", "08/01/26", "09/01/26", "10/01/26", "11/01/26", "12/01/26", "13/01/26", "14/01/26", "15/01/26", "16/01/26", "17/01/26", "18/01/26", "19/01/26", "20/01/26", "21/01/26", "22/01/26", "23/01/26", "24/01/26", "25/01/26", "26/01/26", "27/01/26", "28/01/26", "29/01/26", "30/01/26", "31/01/26", "01/02/26", "02/02/26", "03/02/26", "04/02/26", "05/02/26", "06/02/26", "07/02/26", "08/02/26", "09/02/26", "10/02/26", "11/02/26", "12/02/26", "13/02/26", "14/02/26", "15/02/26", "16/02/26", "17/02/26", "18/02/26", "19/02/26", "20/02/26", "21/02/26", "22/02/26", "23/02/26", "24/02/26", "25/02/26", "26/02/26", "27/02/26", "28/02/26"], "compliance_rate": 73.3, "crew_roles": {}, "crew_rotations": [], "crew_schedule": {"fatigue": [], "office_standby": [], "sick_call": [], "standby": [], "summary": {"CSL": 1, "FGT": 0, "NO_DUTY": 6, "OFF": 0, "OSBY": 2, "SBY": 24, "SL": 2}}, "current_filter_date": null, "is_aims_source": true, "last_updated": "2026-01-29 14:33:52", "operating_crew": [], "rolling_hours": [{"block_12month": "980:30", "block_28day": "100:35", "hours_12month": 980.5, "hours_28day": 100.58, "id": "13836", "name": "LINH 115 NGUYEN DIEU", "percentage": 100.6, "seniority": "0", "status": "critical"}, {"block_12month": "840:54", "block_28day": "100:28", "hours_12month": 840.9, "hours_28day": 100.47, "id": "11848", "name": "LINH 97 NGUYEN THI DIEU", "percentage": 100.5, "seniority": "0", "status": "critical"}, {"block_12month": "958:00", "block_28day": "100:25", "hours_12month": 958.0, "hours_28day": 100.42, "id": "11863", "name": "NGOC 54 CAO BICH", "percentage": 100.4, "seniority": "0", "status": "critical"}, {"block_12month": "923:22", "block_28day": "100:00", "hours_12month": 923.37, "hours_28day": 100.0, "id": "13844", "name": "PHUONG 56 QUACH THU", "percentage": 100.0, "seniority": "0", "status": "critical"}, {"block_12month": "963:49", "block_28day": "99:59", "hours_12month": 963.82, "hours_28day": 99.98, "id": "5568", "name": "ANH 49 TRAN TUAN", "percentage": 100.0, "seniority": "0", "status": "critical"}, {"block_12month": "601:42", "block_28day": "99:58", "hours_12month": 601.7, "hours_28day": 99.97, "id": "10195", "name": "NGA 17 NGUYEN THI", "percentage": 100.0, "seniority": "0", "status": "critical"}, {"block_12month": "971:01", "block_28day": "99:58", "hours_12month": 971.02, "hours_28day": 99.97, "id": "13081", "name": "ANH 178 PHAM MINH", "percentage": 100.0, "seniority": "0", "status": "critical"}, {"block_12month": "876:06", "block_28day": "99:50", "hours_12month": 876.1, "hours_28day": 99.83, "id": "8310", "name": "NHI 17 NGUYEN THAO", "percentage": 99.8, "seniority": "0", "status": "critical"}, {"block_12month": "200:55", "block_28day": "99:49", "hours_12month": 200.92, "hours_28day": 99.82, "id": "18502", "name": "HANG 36 TRAN THUY", "percentage": 99.8, "seniority": "0", "status": "critical"}, {"block_12month": "455:55", "block_28day": "99:37", "hours_12month": 455.92, "hours_28day": 99.62, "id": "17900", "name": "QUYNH 45 NGUYEN THI DIEM", "percentage": 99.6, "seniority": "0", "status": "critical"}, {"block_12month": "241:02", "block_28day": "99:33", "hours_12month": 241.03, "hours_28day": 99.55, "id": "18498", "name": "DUY 36 VU HOANG", "percentage": 99.5, "seniority": "0", "status": "critical"}, {"block_12month": "864:18", "block_28day": "99:30", "hours_12month": 864.3, "hours_28day": 99.5, "id": "13733", "name": "HUY 53 LE QUANG", "percentage": 99.5, "seniority": "0", "status": "critical"}, {"block_12month": "959:44", "block_28day": "99:30", "hours_12month": 959.73, "hours_28day": 99.5, "id": "10279", "name": "PHUONG 48 NGUYEN THU", "percentage": 99.5, "seniority": "0", "status": "critical"}, {"block_12month": "993:41", "block_28day": "99:30", "hours_12month": 993.68, "hours_28day": 99.5, "id": "15485", "name": "TIEP 2 LE QUANG", "percentage": 99.5, "seniority": "0", "status": "critical"}, {"block_12month": "657:23", "block_28day": "99:25", "hours_12month": 657.38, "hours_28day": 99.42, "id": "17059", "name": "NHUNG 40 LE THI HONG", "percentage": 99.4, "seniority": "0", "status": "critical"}, {"block_12month": "970:18", "block_28day": "99:25", "hours_12month": 970.3, "hours_28day": 99.42, "id": "15494", "name": "VAN 38 NGUYEN THI", "percentage": 99.4, "seniority": "0", "status": "critical"}, {"block_12month": "810:02", "block_28day": "99:20", "hours_12month": 810.03, "hours_28day": 99.33, "id": "16547", "name": "HIEU 39 PHAN DUC", "percentage": 99.3, "seniority": "0", "status": "critical"}, {"block_12month": "408:48", "block_28day": "99:20", "hours_12month": 408.8, "hours_28day": 99.33, "id": "18134", "name": "OANH 22 NGUYEN THI", "percentage": 99.3, "seniority": "0", "status": "critical"}, {"block_12month": "524:04", "block_28day": "99:20", "hours_12month": 524.07, "hours_28day": 99.33, "id": "17916", "name": "VAN 42 NGUYEN THI HONG", "percentage": 99.3, "seniority": "0", "status": "critical"}, {"block_12month": "983:28", "block_28day": "99:20", "hours_12month": 983.47, "hours_28day": 99.33, "id": "6178", "name": "HA 14 DAO MANH", "percentage": 99.3, "seniority": "0", "status": "critical"}, {"block_12month": "954:14", "block_28day": "99:20", "hours_12month": 954.23, "hours_28day": 99.33, "id": "13587", "name": "LONG 30 NGUYEN THANH", "percentage": 99.3, "seniority": "0", "status": "critical"}, {"block_12month": "648:19", "block_28day": "99:15", "hours_12month": 648.32, "hours_28day": 99.25, "id": "17564", "name": "THAO 115 NGUYEN THI PHUONG", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "953:53", "block_28day": "99:12", "hours_12month": 953.88, "hours_28day": 99.2, "id": "12735", "name": "LINH 104 TRUONG THI THUY", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "942:49", "block_28day": "99:12", "hours_12month": 942.82, "hours_28day": 99.2, "id": "15006", "name": "TUAN 49 PHAM MINH", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "943:14", "block_28day": "99:10", "hours_12month": 943.23, "hours_28day": 99.17, "id": "14253", "name": "TAN 16 NGUYEN HUY", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "415:11", "block_28day": "99:10", "hours_12month": 415.18, "hours_28day": 99.17, "id": "18115", "name": "ANH 232 NGUYEN NGOC", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "946:38", "block_28day": "99:10", "hours_12month": 946.63, "hours_28day": 99.17, "id": "10298", "name": "THANG 16 NGUYEN DINH", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "887:17", "block_28day": "99:10", "hours_12month": 887.28, "hours_28day": 99.17, "id": "6338", "name": "SON 5 BUI AN", "percentage": 99.2, "seniority": "0", "status": "critical"}, {"block_12month": "963:49", "block_28day": "99:05", "hours_12month": 963.82, "hours_28day": 99.08, "id": "15438", "name": "HANH 32 NGUYEN THI HONG", "percentage": 99.1, "seniority": "0", "status": "critical"}, {"block_12month": "982:07", "block_28day": "99:05", "hours_12month": 982.12, "hours_28day": 99.08, "id": "4756", "name": "HUNG 12 NGUYEN QUANG", "percentage": 99.1, "seniority": "0", "status": "critical"}, {"block_12month": "432:10", "block_28day": "99:05", "hours_12month": 432.17, "hours_28day": 99.08, "id": "18255", "name": "MARIN CHUCK PATRICK", "percentage": 99.1, "seniority": "0", "status": "critical"}, {"block_12month": "804:15", "block_28day": "99:05", "hours_12month": 804.25, "hours_28day": 99.08, "id": "16565", "name": "TRUC 20 LE HO THANH", "percentage": 99.1, "seniority": "0", "status": "critical"}, {"block_12month": "203:49", "block_28day": "99:04", "hours_12month": 203.82, "hours_28day": 99.07, "id": "18567", "name": "BERGQVIST JAN MIKAEL", "percentage": 99.1, "seniority": "0", "status": "critical"}, {"block_12month": "988:44", "block_28day": "99:03", "hours_12month": 988.73, "hours_28day": 99.05, "id": "10281", "name": "THAO 81 TA PHUONG", "percentage": 99.0, "seniority": "0", "status": "critical"}, {"block_12month": "887:53", "block_28day": "99:03", "hours_12month": 887.88, "hours_28day": 99.05, "id": "13720", "name": "BICH 6 BUI THI NGOC", "percentage": 99.0, "seniority": "0", "status": "critical"}, {"block_12month": "755:21", "block_28day": "99:02", "hours_12month": 755.35, "hours_28day": 99.03, "id": "16560", "name": "THO 8 NGUYEN ANH", "percentage": 99.0, "seniority": "0", "status": "critical"}, {"block_12month": "934:11", "block_28day": "98:57", "hours_12month": 934.18, "hours_28day": 98.95, "id": "15584", "name": "DUNG 50 DAO THI PHUONG", "percentage": 99.0, "seniority": "0", "status": "critical"}, {"block_12month": "997:30", "block_28day": "98:51", "hours_12month": 997.5, "hours_28day": 98.85, "id": "13103", "name": "UYEN 25 KIEU HONG", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "354:15", "block_28day": "98:50", "hours_12month": 354.25, "hours_28day": 98.83, "id": "17890", "name": "MARTOSICH IAROSLAV", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "952:46", "block_28day": "98:50", "hours_12month": 952.77, "hours_28day": 98.83, "id": "13408", "name": "YEN 35 DINH THI HAI", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "910:29", "block_28day": "98:50", "hours_12month": 910.48, "hours_28day": 98.83, "id": "13407", "name": "THUY 45 PHAM THANH", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "421:45", "block_28day": "98:50", "hours_12month": 421.75, "hours_28day": 98.83, "id": "18118", "name": "CHAU 21 TRAN BAO", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "976:57", "block_28day": "98:45", "hours_12month": 976.95, "hours_28day": 98.75, "id": "13830", "name": "HOAI 3 DANG THI", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "980:08", "block_28day": "98:45", "hours_12month": 980.13, "hours_28day": 98.75, "id": "9858", "name": "LINH 82 DAO VU PHUONG", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "698:00", "block_28day": "98:45", "hours_12month": 698.0, "hours_28day": 98.75, "id": "9105", "name": "HOA 10 NGUYEN THI", "percentage": 98.8, "seniority": "0", "status": "critical"}, {"block_12month": "933:09", "block_28day": "98:42", "hours_12month": 933.15, "hours_28day": 98.7, "id": "16211", "name": "NGWA NEE PHU", "percentage": 98.7, "seniority": "0", "status": "critical"}, {"block_12month": "240:26", "block_28day": "98:40", "hours_12month": 240.43, "hours_28day": 98.67, "id": "6996", "name": "CHI 11 DO THI KIM", "percentage": 98.7, "seniority": "0", "status": "critical"}, {"block_12month": "879:39", "block_28day": "98:39", "hours_12month": 879.65, "hours_28day": 98.65, "id": "12069", "name": "SON 30 NGHIEM XUAN", "percentage": 98.7, "seniority": "0", "status": "critical"}, {"block_12month": "410:59", "block_28day": "98:39", "hours_12month": 410.98, "hours_28day": 98.65, "id": "18117", "name": "BAO 20 HOANG GIA", "percentage": 98.7, "seniority": "0", "status": "critical"}, {"block_12month": "953:54", "block_28day": "98:38", "hours_12month": 953.9, "hours_28day": 98.63, "id": "15452", "name": "KIM 3 NGUYEN THIEN", "percentage": 98.6, "seniority": "0", "status": "critical"}], "rolling_stats": {"critical": 171, "normal": 2400, "warning": 702}, "standby_records": [{"ac_type": "320", "base": "SGN", "crew_id": "3529", "crew_name": "ABDUL RA", "duty_date": "08/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "7534", "crew_name": "AKASH KA", "duty_date": "15/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "15244", "crew_name": "AVETISOV", "duty_date": "16/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "16868", "crew_name": "BUI CONG", "duty_date": "02/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "16868", "crew_name": "BUI CONG", "duty_date": "05/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "2916", "crew_name": "BUI MINH", "duty_date": "03/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "2916", "crew_name": "BUI MINH", "duty_date": "08/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "14935", "crew_name": "CRUZ MEN", "duty_date": "01/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "14935", "crew_name": "CRUZ MEN", "duty_date": "14/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "15402", "crew_name": "DONALD M", "duty_date": "03/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "16121", "crew_name": "GUZ YURY", "duty_date": "12/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "16121", "crew_name": "GUZ YURY", "duty_date": "14/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "2070", "crew_name": "JOSE ALVI", "duty_date": "14/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "3568", "crew_name": "KENNY TIE", "duty_date": "01/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "3568", "crew_name": "KENNY TIE", "duty_date": "03/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "3568", "crew_name": "KENNY TIE", "duty_date": "05/02/26", "duty_type": "SBY", "long_format": true, "position": "C"}, {"ac_type": "320", "base": "SGN", "crew_id": "1001", "crew_name": "TEST CP1", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "CP"}, {"ac_type": "320", "base": "SGN", "crew_id": "1002", "crew_name": "TEST CP2", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "CP"}, {"ac_type": "320", "base": "SGN", "crew_id": "1003", "crew_name": "TEST FO1", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "FO"}, {"ac_type": "320", "base": "SGN", "crew_id": "1004", "crew_name": "TEST FO2", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "FO"}, {"ac_type": "320", "base": "SGN", "crew_id": "1005", "crew_name": "TEST PU1", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "PU"}, {"ac_type": "320", "base": "SGN", "crew_id": "1006", "crew_name": "TEST FA1", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "FA"}, {"ac_type": "320", "base": "SGN", "crew_id": "1007", "crew_name": "TEST FA2", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "FA"}, {"ac_type": "320", "base": "SGN", "crew_id": "1008", "crew_name": "TEST FA3", "duty_date": "07/02/26", "duty_type": "SBY", "long_format": true, "position": "FA"}, {"ac_type": "320", "base": "SGN", "crew_id": "2001", "crew_name": "SICK1", "duty_date": "07/02/26", "duty_type": "SL", "long_format": true, "position": "CP"}, {"ac_type": "320", "base": "SGN", "crew_id": "2002", "crew_name": "SICK2", "duty_date": "07/02/26", "duty_type": "SL", "long_format": true, "position": "FO"}, {"ac_type": "320", "base": "SGN", "crew_id": "3001", "crew_name": "CALLSICK1", "duty_date": "07/02/26", "duty_type": "CSL", "long_format": true, "position": "CP"}, {"ac_type": "320", "base": "SGN", "crew_id": "4001", "crew_name": "OSBY1", "duty_date": "07/02/26", "duty_type": "OSBY", "long_format": true, "position": "PU"}, {"ac_type": "320", "base": "SGN", "crew_id": "4002", "crew_name": "OSBY2", "duty_date": "07/02/26", "duty_type": "OSBY", "long_format": true, "position": "FA"}], "summary": {"avg_flight_hours": 731.0, "crew_rotation_count": 0, "flight_trend": 0, "flight_trend_direction": "neutral", "total_aircraft": 97, "total_block_hours": 70909.0, "total_crew": 0, "total_flights": 29298}, "utilization": {"320": {"avg_util": "11:03", "dom_block": "65:45", "dom_cycles": "38", "int_block": "100:00", "int_cycles": "25", "total_block": "165:45", "total_cycles": "63"}, "321": {"avg_util": "12:40", "dom_block": "240:50", "dom_cycles": "151", "int_block": "570:40", "int_cycles": "153", "total_block": "811:30", "total_cycles": "304"}, "330": {"avg_util": "13:30", "dom_block": "16:00", "dom_cycles": "8", "int_block": "92:05", "int_cycles": "13", "total_block": "108:05", "total_cycles": "21"}}};
+        const filterDate = "";
+
+        // Update Date/Time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('current-date').textContent =
+                now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            document.getElementById('current-time').textContent =
+                now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 60000);
+
+        // Manual Refresh Data from Source
+        async function refreshData() {
+            try {
+                const btn = document.querySelector('button[onclick="refreshData()"]');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '🔄 Reloading...';
+                btn.disabled = true;
+
+                const response = await fetch('/refresh');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert('Refresh failed: ' + result.message);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                window.location.reload(); // Fallback to normal reload
+            }
+        }
+
+        // Sidebar Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function (e) {
+                if (this.getAttribute('href') === '#') {
+                    e.preventDefault();
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                }
+            });
+        });
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // Activate button (simple search)
+            Array.from(document.querySelectorAll('.tab-btn')).forEach(btn => {
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabId)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            const tabContent = document.getElementById(tabId);
+            if (tabContent) tabContent.classList.add('active');
+        }
+
+        // Modal Functions
+        function openUploadModal() {
+            document.getElementById('uploadModal').style.display = 'block';
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+        }
+
+        function openCrewRotationModal() {
+            document.getElementById('crewRotationModal').style.display = 'block';
+        }
+
+        function closeCrewRotationModal() {
+            document.getElementById('crewRotationModal').style.display = 'none';
+        }
+
+        function openCrewOperatingModal() {
+            document.getElementById('crewOperatingModal').style.display = 'block';
+        }
+
+        function closeCrewOperatingModal() {
+            document.getElementById('crewOperatingModal').style.display = 'none';
+        }
+
+        // Crew History Modal Functions
+        function openCrewHistoryModal(crewId, crewName, blockHours, percentage, status) {
+            document.getElementById('crewHistoryName').textContent = crewName || 'Unknown';
+            document.getElementById('crewHistoryHours').textContent = blockHours + ' / 100h';
+
+            // Set status badge with color
+            const statusEl = document.getElementById('crewHistoryStatus');
+            statusEl.textContent = status.toUpperCase();
+            if (status === 'critical') {
+                statusEl.style.color = 'var(--accent-red)';
+            } else if (status === 'warning') {
+                statusEl.style.color = 'var(--accent-yellow)';
+            } else {
+                statusEl.style.color = 'var(--accent-green)';
+            }
+
+            // Update progress bar
+            const progressBar = document.getElementById('crewHistoryProgressBar');
+            progressBar.style.width = Math.min(percentage, 100) + '%';
+            progressBar.className = 'progress-fill ' + (status === 'critical' ? 'red' : (status === 'warning' ? 'yellow' : 'green'));
+
+            // Populate flight history table from dashboardData
+            const tbody = document.getElementById('crewHistoryTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Flight history details would be loaded from AIMS API</td></tr>';
+
+            document.getElementById('crewHistoryModal').style.display = 'block';
+        }
+
+        function closeCrewHistoryModal() {
+            document.getElementById('crewHistoryModal').style.display = 'none';
+        }
+
+        // Data Source Toggle Function
+        function toggleDataSource(source) {
+            // When switching sources, we CLEAR the date filter to avoid range mismatches
+            window.location.href = '/?source=' + source;
+        }
+
+        // File label update
+        function updateFileLabel(input) {
+            const label = document.getElementById(input.id + '-label');
+            if (input.files && input.files[0]) {
+                label.textContent = 'Selected: ' + input.files[0].name;
+            }
+        }
+
+        // Base Selector Logic
+        document.querySelectorAll('.base-btn[data-base]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const base = this.getAttribute('data-base');
+                const url = new URL(window.location.href);
+                if (base === 'all') {
+                    url.searchParams.delete('base');
+                } else {
+                    url.searchParams.set('base', base.toUpperCase());
+                }
+                window.location.href = url.toString();
+            });
+        });
+
+        // Set active base button on load
+        function setActiveBaseButton() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentBase = (urlParams.get('base') || 'all').toLowerCase();
+            document.querySelectorAll('.base-btn[data-base]').forEach(btn => {
+                if (btn.getAttribute('data-base') === currentBase) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        setActiveBaseButton();
+            if (input.files.length > 0) {
+                const file = input.files[0];
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                label.textContent = `✓ ${file.name} (${sizeMB} MB)`;
+                label.style.display = 'block';
+            } else {
+                label.style.display = 'none';
+            }
+        }
+
+        // Drag & Drop functionality
+        const dropZone = document.getElementById('dropZone');
+
+        dropZone.addEventListener('click', () => {
+            document.getElementById('dayrep').click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--accent-cyan)';
+            dropZone.style.background = 'rgba(6, 182, 212, 0.1)';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--border-color)';
+            dropZone.style.background = 'var(--glass-bg)';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--border-color)';
+            dropZone.style.background = 'var(--glass-bg)';
+
+            const files = e.dataTransfer.files;
+            for (let file of files) {
+                const fileName = file.name.toLowerCase();
+                if (fileName.includes('dayrep')) {
+                    document.getElementById('dayrep').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('dayrep'));
+                } else if (fileName.includes('sacutil')) {
+                    document.getElementById('sacutil').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('sacutil'));
+                } else if (fileName.includes('rolcr')) {
+                    document.getElementById('rolcrtot').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('rolcrtot'));
+                } else if (fileName.includes('crew') && fileName.includes('schedule')) {
+                    document.getElementById('crew_schedule').files = createFileList([file]);
+                    updateFileLabel(document.getElementById('crew_schedule'));
+                }
+            }
+        });
+
+        function createFileList(files) {
+            const dataTransfer = new DataTransfer();
+            for (let file of files) {
+                dataTransfer.items.add(file);
+            }
+            return dataTransfer.files;
+        }
+
+        // Auto-refresh check (poll server every 5 seconds)
+        let autoRefreshEnabled = true;
+
+        function checkForUpdates() {
+            if (!autoRefreshEnabled) return;
+
+            fetch('/api/check_updates')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.has_update) {
+                        showRefreshToast();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    }
+                })
+                .catch(err => console.error('Update check failed:', err));
+        }
+
+        function showRefreshToast() {
+            const toast = document.getElementById('refreshToast');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+
+        // Check for updates every 5 seconds
+        setInterval(checkForUpdates, 5000);
+
+        // Close modals on outside click
+        window.onclick = function (event) {
+            if (event.target == document.getElementById('uploadModal')) {
+                closeUploadModal();
+            }
+            if (event.target == document.getElementById('crewRotationModal')) {
+                closeCrewRotationModal();
+            }
+            if (event.target == document.getElementById('crewOperatingModal')) {
+                closeCrewOperatingModal();
+            }
+            if (event.target == document.getElementById('crewHistoryModal')) {
+                closeCrewHistoryModal();
+            }
+        }
+
+        // --- Charts Initialization ---
+
+        // Utilization Gauge
+        const gaugeCtx = document.getElementById('utilizationGauge').getContext('2d');
+        // Calculate dynamic value if data available
+        let utilValue = 87.5; // default
+
+        new Chart(gaugeCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [utilValue, 100 - utilValue],
+                    backgroundColor: ['rgba(34, 197, 94, 0.8)', 'rgba(30, 41, 59, 0.5)'],
+                    borderWidth: 0,
+                    circumference: 270,
+                    rotation: 225
+                }]
+            },
+            options: {
+                cutout: '75%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                responsive: true,
+                maintainAspectRatio: true
+            }
+        });
+
+        // Crew Distribution Chart
+        if (dashboardData && dashboardData.crew_roles) {
+            const crewCtx = document.getElementById('crewDistribution').getContext('2d');
+            new Chart(crewCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['CP (Captain)', 'FO (First Officer)', 'PU (Purser)', 'FA (Flight Attendant)'],
+                    datasets: [{
+                        data: [
+                            dashboardData.crew_roles.CP || 0,
+                            dashboardData.crew_roles.FO || 0,
+                            dashboardData.crew_roles.PU || 0,
+                            dashboardData.crew_roles.FA || 0
+                        ],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(6, 182, 212, 0.8)',
+                            'rgba(34, 197, 94, 0.8)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: 'rgba(15, 23, 42, 0.8)'
+                    }]
+                },
+                options: {
+                    cutout: '60%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+    </script>
+    <!-- Aircraft Flying Modal -->
+    <div id="aircraftFlyingModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto;">
+        <div
+            style="background: var(--bg-secondary); padding: 2rem; border-radius: 16px; max-width: 600px; width: 95%; border: 1px solid var(--border-color); margin: 2rem auto; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="color: var(--text-primary);">✈️ Aircraft Operating Today</h3>
+                <span
+                    style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;"
+                    onclick="closeAircraftFlyingModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>REG</th>
+                            <th>Total Hours</th>
+                            <th>Flights</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>B-652G</td>
+                            <td>358.0</td>
+                            <td>245</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>B-656E</td>
+                            <td>227.5</td>
+                            <td>156</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>LY-MLI</td>
+                            <td>789.5</td>
+                            <td>466</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>LY-MLN</td>
+                            <td>786.2</td>
+                            <td>469</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>LY-NVE</td>
+                            <td>786.0</td>
+                            <td>468</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>LY-NVG</td>
+                            <td>713.5</td>
+                            <td>451</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>TEST-JET</td>
+                            <td>2.0</td>
+                            <td>1</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A500</td>
+                            <td>823.8</td>
+                            <td>299</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A516</td>
+                            <td>767.5</td>
+                            <td>268</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A522</td>
+                            <td>841.3</td>
+                            <td>307</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A523</td>
+                            <td>790.9</td>
+                            <td>278</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A525</td>
+                            <td>849.8</td>
+                            <td>330</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A526</td>
+                            <td>833.4</td>
+                            <td>294</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A527</td>
+                            <td>2.2</td>
+                            <td>1</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A528</td>
+                            <td>867.0</td>
+                            <td>312</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A531</td>
+                            <td>4.4</td>
+                            <td>2</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A532</td>
+                            <td>833.8</td>
+                            <td>278</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A534</td>
+                            <td>814.7</td>
+                            <td>301</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A535</td>
+                            <td>805.3</td>
+                            <td>310</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A536</td>
+                            <td>912.4</td>
+                            <td>240</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A537</td>
+                            <td>791.4</td>
+                            <td>297</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A538</td>
+                            <td>811.8</td>
+                            <td>275</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A539</td>
+                            <td>775.4</td>
+                            <td>261</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A540</td>
+                            <td>2.2</td>
+                            <td>1</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A542</td>
+                            <td>850.5</td>
+                            <td>277</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A544</td>
+                            <td>771.3</td>
+                            <td>306</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A545</td>
+                            <td>889.1</td>
+                            <td>281</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A546</td>
+                            <td>833.1</td>
+                            <td>290</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A547</td>
+                            <td>859.3</td>
+                            <td>304</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A548</td>
+                            <td>810.1</td>
+                            <td>267</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A549</td>
+                            <td>834.6</td>
+                            <td>237</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A550</td>
+                            <td>793.9</td>
+                            <td>249</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A552</td>
+                            <td>866.8</td>
+                            <td>297</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A553</td>
+                            <td>404.0</td>
+                            <td>239</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A554</td>
+                            <td>380.2</td>
+                            <td>225</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A575</td>
+                            <td>381.7</td>
+                            <td>218</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A578</td>
+                            <td>850.5</td>
+                            <td>267</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A580</td>
+                            <td>720.7</td>
+                            <td>277</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A607</td>
+                            <td>937.3</td>
+                            <td>248</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A629</td>
+                            <td>676.6</td>
+                            <td>242</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A630</td>
+                            <td>821.0</td>
+                            <td>289</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A632</td>
+                            <td>608.5</td>
+                            <td>364</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A633</td>
+                            <td>835.1</td>
+                            <td>331</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A634</td>
+                            <td>798.1</td>
+                            <td>274</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A635</td>
+                            <td>648.8</td>
+                            <td>384</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A636</td>
+                            <td>793.7</td>
+                            <td>287</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A637</td>
+                            <td>609.3</td>
+                            <td>366</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A639</td>
+                            <td>595.4</td>
+                            <td>360</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A640</td>
+                            <td>786.0</td>
+                            <td>307</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A641</td>
+                            <td>724.6</td>
+                            <td>306</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A642</td>
+                            <td>645.3</td>
+                            <td>392</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A643</td>
+                            <td>619.1</td>
+                            <td>408</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A644</td>
+                            <td>556.1</td>
+                            <td>325</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A645</td>
+                            <td>800.8</td>
+                            <td>300</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A646</td>
+                            <td>839.0</td>
+                            <td>219</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A647</td>
+                            <td>646.2</td>
+                            <td>248</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A648</td>
+                            <td>841.8</td>
+                            <td>295</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A649</td>
+                            <td>758.1</td>
+                            <td>265</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A650</td>
+                            <td>747.6</td>
+                            <td>374</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A651</td>
+                            <td>853.0</td>
+                            <td>287</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A653</td>
+                            <td>925.2</td>
+                            <td>242</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A655</td>
+                            <td>687.6</td>
+                            <td>355</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A656</td>
+                            <td>779.0</td>
+                            <td>351</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A657</td>
+                            <td>826.3</td>
+                            <td>296</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A658</td>
+                            <td>1104.1</td>
+                            <td>349</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A661</td>
+                            <td>596.6</td>
+                            <td>234</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A662</td>
+                            <td>802.5</td>
+                            <td>358</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A663</td>
+                            <td>659.4</td>
+                            <td>310</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A666</td>
+                            <td>495.5</td>
+                            <td>218</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A667</td>
+                            <td>803.8</td>
+                            <td>275</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A668</td>
+                            <td>886.6</td>
+                            <td>363</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A669</td>
+                            <td>800.8</td>
+                            <td>348</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A670</td>
+                            <td>664.0</td>
+                            <td>248</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A671</td>
+                            <td>845.2</td>
+                            <td>368</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A672</td>
+                            <td>844.3</td>
+                            <td>347</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A673</td>
+                            <td>757.4</td>
+                            <td>276</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A674</td>
+                            <td>835.0</td>
+                            <td>270</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A675</td>
+                            <td>861.0</td>
+                            <td>379</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A676</td>
+                            <td>803.8</td>
+                            <td>331</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A677</td>
+                            <td>727.8</td>
+                            <td>301</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A683</td>
+                            <td>573.1</td>
+                            <td>196</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A684</td>
+                            <td>617.6</td>
+                            <td>205</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A685</td>
+                            <td>546.0</td>
+                            <td>323</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A687</td>
+                            <td>761.0</td>
+                            <td>269</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A689</td>
+                            <td>807.5</td>
+                            <td>344</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A693</td>
+                            <td>854.5</td>
+                            <td>294</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A697</td>
+                            <td>931.7</td>
+                            <td>332</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A698</td>
+                            <td>764.7</td>
+                            <td>276</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A699</td>
+                            <td>999.4</td>
+                            <td>222</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A810</td>
+                            <td>938.4</td>
+                            <td>175</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A811</td>
+                            <td>748.9</td>
+                            <td>177</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A812</td>
+                            <td>823.8</td>
+                            <td>189</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A814</td>
+                            <td>905.3</td>
+                            <td>153</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A815</td>
+                            <td>869.2</td>
+                            <td>174</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A816</td>
+                            <td>930.7</td>
+                            <td>194</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A817</td>
+                            <td>783.7</td>
+                            <td>184</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>VN-A820</td>
+                            <td>770.5</td>
+                            <td>185</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Scripts for New Modal -->
+    <script>
+        function openAircraftFlyingModal() {
+            document.getElementById('aircraftFlyingModal').style.display = 'flex';
+        }
+
+        function closeAircraftFlyingModal() {
+            document.getElementById('aircraftFlyingModal').style.display = 'none';
+        }
+
+        // Add to existing window.onclick if possible, or just add event listener
+        window.addEventListener('click', function (event) {
+            var modal = document.getElementById('aircraftFlyingModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        });
+    </script>
+</body>
+
+</html>

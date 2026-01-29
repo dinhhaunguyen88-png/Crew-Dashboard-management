@@ -889,7 +889,7 @@ class AIMSSoapClient:
         
         # Optimization: Limit concurrent requests or use a smaller sample if base is too large
         # For real production, AIMS might provide a bulk service, but we use individual roster details here
-        max_crew = 200 # Safety limit for performance
+        max_crew = 40 # Reduced from 200 to prevent dashboard timeouts
         
         for crew in crew_list[:max_crew]:
             cid = crew.get('crew_id')

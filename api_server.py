@@ -27,9 +27,6 @@ try:
     ERROR_HANDLER_AVAILABLE = True
 except ImportError:
     ERROR_HANDLER_AVAILABLE = False
-    ERROR_HANDLER_AVAILABLE = True
-except ImportError:
-    ERROR_HANDLER_AVAILABLE = False
     print("Warning: Error handler middleware not found.")
 
 # Import ETL Scheduler (with fallback)
@@ -127,7 +124,21 @@ def index():
     date_context = session.get('upload_date_context')
     
     # Get data source (csv or aims)
-    source = request.args.get('source', 'csv')
+    # Default to CSV, but auto-switch to AIMS if CSV has minimal data and AIMS has substantial data
+    requested_source = request.args.get('source', None)
+    if requested_source:
+        source = requested_source
+    else:
+        # Auto-detect best source: prefer AIMS if it has significantly more data
+        csv_count = len(processor.flights)
+        aims_count = len(processor.aims_flights)
+        
+        # Use AIMS if: CSV is empty OR AIMS has 10x more data than CSV
+        if aims_count > 0 and (csv_count == 0 or aims_count > csv_count * 10):
+            source = 'aims'
+            print(f"DEBUG: Auto-switched to AIMS source (CSV: {csv_count}, AIMS: {aims_count})")
+        else:
+            source = 'csv'
     
     # Get base filter
     base = request.args.get('base', None)
@@ -255,11 +266,6 @@ def upload_files():
         global last_update_time, pending_refresh
         last_update_time = datetime.now()
         pending_refresh = True
-        
-        # Save upload context to session
-        if processor.upload_date_context and processor.upload_date_context.get('min_date'):
-            session['upload_date_context'] = processor.upload_date_context
-            print(f"Saved upload context to session: {processor.upload_date_context}")
         
         # Save upload context to session
         if processor.upload_date_context and processor.upload_date_context.get('min_date'):
